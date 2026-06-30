@@ -1,243 +1,76 @@
-  <html>
-  <body>
+# **Takım İsmi**
 
- 
-  # **Team & Product Name**
+Takım X
 
-  ### **`Grup 75`**
+# Ürün İle İlgili Bilgiler
 
-  # Information About Team and Product
+## Takım Elemanları
 
-## Team Members
+- John Doe: Product Owner
+- Jane Doe: Scrum Master
+- Atıl Samancıoğlu: Team Member/Developer
 
-   <table>
-     <tr>
-       <th></th>
-       <th>Name</th>
-       <th>Title</th>
-       <th>Socials</th>
-     </tr>
-     <tr>
-       <td><img src="" width="50" height="50" /></td>
-       <td></td>
-       <td>Scrum Master</td>
-       <td>
-         <a href="" target="_blank"><img src="" width="20" height="20"/></a>
-         <a href="" target="_blank" ><img src="" width="20" height="20" /></a>
-         <a href="" target="_blank"><img src="" width="20" height="20" /></a>
-       </td>
-     </tr>
-     <tr>
-       <td><img src="" width="50" height="50" /></td>
-       <td></td>
-       <td>Product Owner</td>
-       <td>
-         <a href="" target="_blank"><img src="" width="20" height="20"/></a>
-         <a href="" target="_blank" ><img src="" width="20" height="20" /></a>
-       </td>
-     </tr>
-     <tr>
-       <td><img src="" width="50" height="50" /></td>
-       <td></td>
-       <td>Developer</td>
-       <td>
-         <a href="" target="_blank"><img src="" width="20" height="20"/></a>
-         <a href="" target="_blank" ><img src="" width="20" height="20" /></a>
-       </td>
-     </tr>
-     <tr>
-       <td><img src="" width="50" height="50" /></td>
-       <td></td>
-       <td>Developer</td>
-       <td>
-         <a href="" target="_blank"><img src="" width="20" height="20"/></a>
-         <a href="" target="_blank" ><img src="" width="20" height="20" /></a>
-         <a href="" target="_blank"><img src="" width="20" height="20" /></a>
-       </td>
-     </tr>
-     <tr>
-       <td><img src="" width="50" height="50" /></td>
-       <td></td>
-       <td>Startup</td>
-       <td>
-         <a href="" target="_blank"><img src="" width="20" height="20" /></a>
-         <a href="" target="_blank"><img src="" width="20" height="20" /></a>
-       </td>
-     </tr>
-   </table>
+## Ürün İsmi
 
+--Movie App--
 
+## Ürün Açıklaması
 
+- Movie App uygulamamız ile insanların izlemek istediği filmlere ve dizilere daha kolay karar vermesini sağlayacağız. İçerisinde binlerce filmi barındıran uygulamamız aynı zamanda Netflix, Prime vb. platformlarda yayınlanıp yayınlanmadığını ve IMDB puanlarını da gösterecek.
 
+## Ürün Özellikleri
 
-## Product Description
+- Filmleri türüne göre ayırma
+- Filmlerin yönetmen, aktör, aktris vb. bilgilerini posteriyle birlikte gösterme
+- IMDB ve Rotten Tomatoes puanlarını gösterme
+- Netflix'te ve Prime'da bulunurluğunu gösterme
 
+## Hedef Kitle
 
-<details>
-     <summary><h2>Product Features</h2></summary>
-   </details>
+- Netflix kullanıcıları
+- Prime kullanıcıları
+- Sinema severler
+- Dizi severler
+- 15 - 65 yaş arası kullanıcılar
 
-<details>
-     <summary><h2>Target Audience</h2></summary>
-   </details>
+## Product Backlog URL
 
---- 
- 
-   <details>
-     <summary><h1>Sprint 1</h1></summary>
+[Miro Backlog Board](https://miro.com/app/board/uXjVOSSCpsI=/)
 
+---
 
-<details>
-     <summary><h3>Sprint 1 - App Screenshots</h3></summary>
-   </details>
+# Sprint 1
 
+- **Backlog düzeni ve Story seçimleri**: Backlog'umuz ilk yapılacak story'lere göre düzenlenmiştir. Sprint başına tahmin edilen puan sayısını geçmeyecek şekilde sıradan seçimler yapılmaktadır. Story başına çıkan tahmin puanı, toplam puanın yarısından az tutulmuştur. 
 
-<details>
-     <summary><h3>Sprint 1 - Sprint Board Update Screenshots</h3></summary>
-   </details>
+Story'ler yapılacak işlere (task'lere) bölünmüştür. Miro Board'da gözüken kırmızı item'lar yapılacak işleri (task) gösterirken, mavi item'lar story'leri temsil etmektedir.
 
-<details>
-     <summary><h3>Sprint 1 - Burndown Chart</h3></summary>
-   </details>
+- **Daily Scrum**: Daily Scrum toplantılarının zamansal sebeplerden ötürü Slack üzerinden yapılmasına karar verilmiştir. Daily Scrum toplantısı örneği jpeg veya word olarak Readme'de tarafımızdan paylaşılmaktadır: [Sprint 1 Daily Scrum Chats](https://github.com/OyunveUygulamaAkademisi/BootcampScrumTemplate/blob/main/ProjectManagement/Sprint1Documents/DailyScrumMeetingNotesSprint1.docx?raw=true)
 
-.
-  - **Daily Scrum**: See file
-  - **Product Backlog URL:** Click for Backlog (Trello)
-- **Sprint Review:**
+- **Sprint board update**: Sprint board screenshotları: 
+![Backlog 1](https://raw.githubusercontent.com/OyunveUygulamaAkademisi/BootcampScrumTemplate/main/ProjectManagement/Sprint1Documents/backlog1.png) 
+![Backlog 2](https://raw.githubusercontent.com/OyunveUygulamaAkademisi/BootcampScrumTemplate/main/ProjectManagement/Sprint1Documents/backlog2.png) 
+![Backlog 3](https://raw.githubusercontent.com/OyunveUygulamaAkademisi/BootcampScrumTemplate/main/ProjectManagement/Sprint1Documents/backlog3.png)
 
-  - **Sprint Review Participants:** 
+- **Ürün Durumu**: Ekran görüntüleri:
+  ![Screenshot 1](https://github.com/OyunveUygulamaAkademisi/BootcampScrumTemplate/blob/main/ProjectManagement/Sprint1Documents/productss1.png?raw=true)
+  ![Screenshot 2](https://github.com/OyunveUygulamaAkademisi/BootcampScrumTemplate/blob/main/ProjectManagement/Sprint1Documents/productss2.png?raw=true)
+
+- **Sprint Review**: 
+Alınan kararlar: Veritabanı oluşturması email ile toplanacak veriler için gerekli görülmüştür. Fakat bir yandan da veritabanı form sayfası için gerekli olmamıştır. O sebeple PBI bir sonraki sprint'e aktarılmıştır. Çıkan ürünün çalışmasında ve testlerinde bir problem görülmemiştir. Ekstra koyulması gereken özellikler belirlenmiştir. Sprint Review katılımcıları: ......
+
 - **Sprint Retrospective:**
+  - Takım içindeki görev dağılımıyla ilgili düzenleme yapılması kararı alınmıştır
+  - Tahmin puanları gözden geçirilmeli ve sprint planlama toplantılarında gerekli geri bildirimlerin developer'lar tarafından verildiğine emin olunmalı
+  - Unit test'ler için ayrılan efor/saat arttırılmalı 
+
+---
+
+# Sprint 2
 
 
-- **Other Notes**:
+---
 
-  </details>
+# Sprint 3
 
-  ---
-
-  <details>
-    <summary><h1>Sprint 2</h1></summary>
-
-
-<details>
-     <summary><h3>Sprint 2 - Screenshots</h3></summary>
-   </details>
-
-<details>
-     <summary><h3>Sprint 2 - Sprint Board Update Screenshots</h3></summary>
-   </details>
-
-<details>
-     <summary><h3>Sprint 2 - Burndown Chart</h3></summary>
-   </details>
-
-  - **Sprint Notes**:
-
-
-
-
-
-  - **Expected point completion within Sprint**:
-  - **Daily Scrum**: See file
-  - **Product Backlog URL:** Click for Backlog (Trello)
-- **Sprint Review**:
-
-  - **Sprint Review Participants:** 
-- **Sprint Retrospective:**
-- **Other Notes**:
-
-
-  </details>
-
-
-  ---
-
-  <details>
-    <summary><h1>Sprint 3</h1></summary>
-
-
-<details>
-     <summary><h3>Sprint 3 - Screenshots</h3></summary>
-   </details>
-
-<details>
-     <summary><h3>Sprint 3 - Sprint Board Update Screenshots</h3></summary>
-   </details>
- 
-   <details>
-     <summary><h3>Sprint 3 - Burndown Chart</h3></summary>
-   </details>
-
-
-- **Sprint Notes**:
- - **Expected point completion within Sprint**: 
- - **Point Completion Logic**: 
- - **Daily Scrum**: 
- - **Product Backlog URL:** 
- - **Sprint Review:**
- - **Sprint Review Participants:** 
- - **Sprint Retrospective:**
- - **Other Notes**:
-
-  </details>
-
-  ---
-  ![details](bootcampFiles/general/headers/details.png)
-
-  # End of the Bootcamp
-  ## App Teaser
-  [![App Teaser]]
-
-  ## APK File
-  See APK File
-
-
-  # Color Reference
-  **`(color palette changed at second sprint)`**
-
-  | Color             | Hex                                                                |
-  | ----------------- | ------------------------------------------------------------------ |
-  | Primary Color | ![#FF9A4D](https://via.placeholder.com/10/FF9A4D?text=+) #FF9A4D |
-  | Light Color | ![#FFAB6B](https://via.placeholder.com/10/FFAB6B?text=+) #FFAB6B |
-  | Lightest Color | ![#FFC08F](https://via.placeholder.com/10/FFC08F?text=+) #FFC08F |
-  | Dark Color | ![#FF882C](https://via.placeholder.com/10/FF882C?text=+) #FF882C |
-  | Darkest Color | ![#FF6F00](https://via.placeholder.com/10/FF6F00?text=+) #FF6F00 |
-
-
-  # **Used Technologies**
-  **`(used technologies changed at third sprint)`**
-  - [x] `firebase_core`
-  - [x] `firebase_auth`
-  - [x] `cloud_firestore`
-  - [x] `flutter_riverpod`
-  - [x] `firebase_analytics`
-  - [x] `hive`
-  - [x] `hive_flutter`
-  - [x] `hive_generator`
-  - [x] `build_runner`
-  - [x] `another_stepper`
-  - [x] `flutter_animate`
-
-  - [x] `http`
-  - [x] `xml2json`
-
-  - [x] `get`
-  - [x] `intl`
-  - [x] `uuid`
-  - [x] `freezed_annotation`
-  - [x] `cached_network_image`
-  - [x] `stream_chat_flutter`
-  - [x] `flutter_stripe`
-  - [x] `hooks_riverpod`
-  - [x] `rxdart`
-  - [x] `google_maps_flutter`
-  - [x] `google_sign_in`
-  - [x] `image_picker`
-  - [x] `geolocator`
-  - [x] `qr_flutter`
-  - [x] `qr_code_scanner`
-  - [x] `onesignal_flutter`
-  - [x] `flutter_markdown`
-  </body>
-  </html>
-
+---
