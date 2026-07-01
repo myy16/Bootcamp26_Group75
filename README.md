@@ -1,4 +1,4 @@
-# **Takım İsmi**
+# **Grup 75**
 
 Takım X
 
@@ -6,9 +6,9 @@ Takım X
 
 ## Takım Elemanları
 
-- John Doe: Product Owner
-- Jane Doe: Scrum Master
-- Atıl Samancıoğlu: Team Member/Developer
+- Edanur Ay: Scrum Master
+- Sude Gül Üzüm: Product Owner
+- Muhammet Yusuf Yılmaz, Ayşegül Yılmaz, Abdulkadir Temizoğlu : Team Member/Developer
 
 ## Ürün İsmi
 
