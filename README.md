@@ -1,4 +1,4 @@
-# **Beautrics*
+# *Beautrics*
 
 Takım 75
 
