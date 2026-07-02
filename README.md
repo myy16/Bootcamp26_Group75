@@ -1,6 +1,6 @@
-# **Grup 75**
+# **Beautrics*
 
-Takım X
+Takım 75
 
 # Ürün İle İlgili Bilgiler
 
@@ -12,26 +12,29 @@ Takım X
 
 ## Ürün İsmi
 
---Movie App--
+Beautrics
 
 ## Ürün Açıklaması
 
-- Movie App uygulamamız ile insanların izlemek istediği filmlere ve dizilere daha kolay karar vermesini sağlayacağız. İçerisinde binlerce filmi barındıran uygulamamız aynı zamanda Netflix, Prime vb. platformlarda yayınlanıp yayınlanmadığını ve IMDB puanlarını da gösterecek.
+Beautrics sitemiz ile kullanıcıların cilt tipi, ihtiyaçları ve bütçelerine en uygun kozmetik ürünlerini yapay zekâ desteğiyle kolayca bulmalarını sağlayacağız. Sitemiz aynı zamanda Gratis, Watsons, Rossmann ve Mion gibi mağazalardaki ürün fiyatlarını karşılaştırarak en avantajlı alışveriş seçeneklerini sunacaktır.
 
 ## Ürün Özellikleri
 
-- Filmleri türüne göre ayırma
-- Filmlerin yönetmen, aktör, aktris vb. bilgilerini posteriyle birlikte gösterme
-- IMDB ve Rotten Tomatoes puanlarını gösterme
-- Netflix'te ve Prime'da bulunurluğunu gösterme
-
+* Kullanıcının cilt tipi, ihtiyaçları ve bütçesine göre kişiselleştirilmiş ürün önerileri sunma
+* Gratis, Watsons, Rossmann ve Mion mağazalarındaki ürün fiyatlarını karşılaştırma
+* Yapay zekâ destekli sohbet ekranı ile doğal dilde ürün önerileri sunma
+* Kampanyalı ve indirimli ürünleri listeleme
+* Bütçeye uygun akıllı alışveriş sepeti oluşturma
+* Favori ürün oluşturma ve fiyat değişimlerinde bildirim gönderme
+* Günlük cilt bakım rutini önerileri sunma
+  
 ## Hedef Kitle
-
-- Netflix kullanıcıları
-- Prime kullanıcıları
-- Sinema severler
-- Dizi severler
-- 15 - 65 yaş arası kullanıcılar
+* Kozmetik ve kişisel bakım ürünleri kullanan bireyler
+* Cilt bakımına ilgi duyan kullanıcılar
+* Bütçesini verimli kullanmak isteyen kişiler
+* Online kozmetik alışverişi yapan kullanıcılar
+* Gratis, Watsons, Rossmann ve Mion müşterileri
+* 18–45 yaş arası kullanıcılar
 
 ## Product Backlog URL
 
