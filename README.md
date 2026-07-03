@@ -4,11 +4,15 @@ Takım 75
 
 # Ürün İle İlgili Bilgiler
 
-## Takım Elemanları
+## Takım Üyeleri
+| İsim | Unvan | Sosyal Medya |
+| :--- | :--- | :--- |
+| **Edanur Ay** | Scrum Master | <a href="https://github.com/edanurray"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Github_logo_svg.svg/3840px-Github_logo_svg.svg.png" width="25"></a>    <a href="https://www.linkedin.com/in/edanuray/"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/LinkedIn_icon.svg/3840px-LinkedIn_icon.svg.png" width="25"></a> |
+| **Sude Gül ÜZÜM** | Product Owner | <a href="https://github.com/sudeguluzum"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Github_logo_svg.svg/3840px-Github_logo_svg.svg.png" width="25"></a>    <a href="https://www.linkedin.com/in/sude-g%C3%BCl-%C3%BCz%C3%BCm-9679ba21b/"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/LinkedIn_icon.svg/3840px-LinkedIn_icon.svg.png" width="25"></a> | |
+| **Ayşegül Yılmaz** | Developer | <a href="https://github.com/sudeguluzum"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Github_logo_svg.svg/3840px-Github_logo_svg.svg.png" width="25" ></a>    <a href="https://www.linkedin.com/in/sude-g%C3%BCl-%C3%BCz%C3%BCm-9679ba21b/"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/LinkedIn_icon.svg/3840px-LinkedIn_icon.svg.png" width="25"></a> |
+| **Muhammet Yusuf Yılmaz** | Developer | <a href="https://github.com/myy16"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Github_logo_svg.svg/3840px-Github_logo_svg.svg.png" width="25"></a>    <a href="https://www.linkedin.com/in/myy1647/"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/LinkedIn_icon.svg/3840px-LinkedIn_icon.svg.png" width="25"></a> |
+| **Abdulkadir Temizoğlu** | Developer | <a href="https://github.com/sudeguluzum"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Github_logo_svg.svg/3840px-Github_logo_svg.svg.png" width="25" ></a>    <a href="https://www.linkedin.com/in/abdulkadir-temizo%C4%9Flu-754701218/"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/LinkedIn_icon.svg/3840px-LinkedIn_icon.svg.png" width="25"></a> |
 
-- Edanur Ay: Scrum Master
-- Sude Gül Üzüm: Product Owner
-- Muhammet Yusuf Yılmaz, Ayşegül Yılmaz, Abdulkadir Temizoğlu : Team Member/Developer
 
 ## Ürün İsmi
 
@@ -16,15 +20,15 @@ Beautrics
 
 ## Ürün Açıklaması
 
-Beautrics sitemiz ile kullanıcıların cilt tipi, ihtiyaçları ve bütçelerine en uygun kozmetik ürünlerini yapay zekâ desteğiyle kolayca bulmalarını sağlayacağız. Sitemiz aynı zamanda Gratis, Watsons, Rossmann ve Mion gibi mağazalardaki ürün fiyatlarını karşılaştırarak en avantajlı alışveriş seçeneklerini sunacaktır.
+Beautrics, kullanıcıların kişisel bakım harcamalarını optimize ederken aynı zamanda en doğru ürünlere ulaşmasını sağlayan yapay zeka destekli bir Kişisel Bakım ve Alışveriş Zekası (BI) platformudur. Sistem; kullanıcıların cilt tipi, saç yapısı, dönemsel bakım ihtiyaçları ve bütçelerine en uygun ürünleri gelişmiş bir RAG (Retrieval-Augmented Generation) mimarisi ve doğal dil işleme (NLP) yetenekleriyle analiz eder. Eş zamanlı olarak Watsons, Gratis, Rossmann ve Mion gibi Türkiye’nin lider perakendecilerindeki güncel fiyatları ve sepet kombinasyonlarını tarayarak son tüketiciye minimum maliyetle maksimum verim sağlayan akıllı bir alışveriş rotası çizer.
 
 ## Ürün Özellikleri
 
-* Kullanıcının cilt tipi, ihtiyaçları ve bütçesine göre kişiselleştirilmiş ürün önerileri sunma
-* Gratis, Watsons, Rossmann ve Mion mağazalarındaki ürün fiyatlarını karşılaştırma
-* Yapay zekâ destekli sohbet ekranı ile doğal dilde ürün önerileri sunma
-* Kampanyalı ve indirimli ürünleri listeleme
+* Kullanıcının cilt tipi, saç yapısı ve özel bakım ihtiyaçlarının yanı sıra bütçesine göre ürün önerileri sunma
+* Yapay zeka destekli sohbet robotu ile doğal dilde ürün önerileri sunma
 * Bütçeye uygun akıllı alışveriş sepeti oluşturma
+* Gratis, Watsons, Rossmann ve Mion mağazalarındaki ürün fiyatlarını karşılaştırma
+* İndirimli ürünleri listeleme
 * Favori ürün oluşturma ve fiyat değişimlerinde bildirim gönderme
 * Günlük cilt bakım rutini önerileri sunma
   
@@ -32,9 +36,9 @@ Beautrics sitemiz ile kullanıcıların cilt tipi, ihtiyaçları ve bütçelerin
 * Kozmetik ve kişisel bakım ürünleri kullanan bireyler
 * Cilt bakımına ilgi duyan kullanıcılar
 * Bütçesini verimli kullanmak isteyen kişiler
-* Online kozmetik alışverişi yapan kullanıcılar
+* Online ve mağaza kozmetik alışverişi yapan kullanıcılar
 * Gratis, Watsons, Rossmann ve Mion müşterileri
-* 18–45 yaş arası kullanıcılar
+* +10 yaş
 
 ## Product Backlog URL
 
