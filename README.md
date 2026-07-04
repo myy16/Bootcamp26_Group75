@@ -38,7 +38,7 @@ Beautrics, kullanıcıların kişisel bakım harcamalarını optimize ederken ay
 * Bütçesini verimli kullanmak isteyen kişiler
 * Online ve mağaza kozmetik alışverişi yapan kullanıcılar
 * Gratis, Watsons, Rossmann ve Mion müşterileri
-* +10 yaş
+* +18 yaş
 
 
 ## Product Backlog URL
