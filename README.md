@@ -40,23 +40,43 @@ Beautrics, kullanıcıların kişisel bakım harcamalarını optimize ederken ay
 * Gratis, Watsons, Rossmann ve Mion müşterileri
 * +10 yaş
 
-## Product Backlog URL
 
 ## Product Backlog URL
 
-[Miro Backlog Board](https://miro.com/app/board/uXjVH-rX4N8=/?share_link_id=813882419570)
+[Miro_Azure Backlog Board Ekran Görüntüleri](https://miro.com/app/board/uXjVH-rX4N8=/?share_link_id=813882419570)
 
 ---
 
 # Sprint 1
 
-- **Backlog düzeni ve Story seçimleri**: Backlog'umuz ilk yapılacak story'lere göre düzenlenmiştir. Sprint başına tahmin edilen puan sayısını geçmeyecek şekilde sıradan seçimler yapılmaktadır. Story başına çıkan tahmin puanı, toplam puanın yarısından az tutulmuştur. 
+Sprint 1’de temel hedefimiz, Beautrics projesinin teknik temelini oluşturmak ve ilerleyen sprintlerde geliştirilecek ana kullanıcı akışları için gerekli altyapıyı hazırlamaktır.
 
-Story'ler yapılacak işlere (task'lere) bölünmüştür. Miro Board'da gözüken kırmızı item'lar yapılacak işleri (task) gösterirken, mavi item'lar story'leri temsil etmektedir.
+Beautrics; kullanıcı profili, ürün önerisi, fiyat karşılaştırması, favori ürün takibi, sepet oluşturma ve kişiselleştirilmiş bakım rutini gibi birden fazla veriyle çalışan bir platform olduğu için ilk sprintte özellikle veritabanı yapısının oluşturulması ve genişletilmesi önceliklendirilmiştir.
+
+Bu sprintte veritabanı altyapısının yanında ürün-mağaza ilişkisi, Supabase kurulumu, web scraping, N8N iş akışı, kullanıcı kayıt/giriş ekranı, favoriler, sepet ve kullanıcı profili gibi temel alanlar üzerinde çalışılmıştır.
+
+Sprint 1 için toplam **100 story point** planlanmıştır. Sprint sonunda burndown grafiğine göre işlerin **%92’si tamamlanmış**, kalan **8 story point** ise Sprint 2’ye aktarılmıştır.
+
+Sprint kapsamına alınan user story’ler daha küçük task’lara bölünmüştür. Böylece her iş daha net takip edilebilir, sorumluluk atanabilir ve sprint board üzerinde ilerleme durumu izlenebilir hale getirilmiştir.
+
+Azure DevOps board üzerinde mavi kartlar user story’leri, sarı kartlar ise bu user story’lere bağlı task’ları temsil etmektedir. İlgili ekran görüntülerini Miro Backlog Board linkinden inceleyebilirsiniz.
+Sprint 1 kapsamında ele alınan temel user story’ler:
+
+- **US-01:** Bir sistem analisti olarak, veritabanı yapısını oluşturmak istiyorum; böylece Beautrics doğru veri temeli üzerinde geliştirilsin.
+- **US-02:** Bir geliştirici olarak, ürün kataloğu ve mağaza fiyat verisinin güvenilir olmasını istiyorum; böylece aynı ürün farklı mağazalarda doğru şekilde karşılaştırılabilsin.
+- **US-03:** Bir sistem olarak, kullanıcının kişisel bakım profilini ve onboarding seçimlerini saklamak istiyorum; böylece öneriler kullanıcıya özel üretilebilsin.
+- **US-04:** Bir kullanıcı olarak, ürünleri sepete ve favorilere eklemek, fiyat alarmı oluşturmak ve bildirim almak istiyorum; böylece alışverişimi planlayıp takip edebileyim.
+- **US-05:** Bir kullanıcı olarak, chatbot önerilerimin ve günlük bakım rutinlerimin profilime göre oluşmasını istiyorum; böylece sistem daha kişisel ve takip edilebilir öneriler sunsun.
+- **US-07:** Bir kullanıcı olarak, Beautrics’e kayıt olmak ve giriş yapmak istiyorum; böylece kişisel bakım profilime ve önerilerime erişebilirim.
+- **US-08:** Bir kullanıcı olarak, profil bilgilerimi görüntülemek ve güncellemek istiyorum; böylece bakım tercihlerimi zaman içinde değiştirebilirim.
+
+US-06 kapsamında yer alan veritabanı güvenilirliği, tutarlılığı ve sorgulanabilirliği ihtiyacı ayrı bir user story olarak devam ettirilmemiştir. Bu kapsam, US-01 ve US-02 altında yer alan veritabanı modelleme, Supabase kurulumu, ürün-mağaza ilişkisi ve veri doğrulama task’larına dağıtılmıştır. Bu nedenle ilgili kart board üzerinde Rejected/Removed alanında gösterilmiştir.
+
 
 - **Daily Scrum**: Daily Scrum toplantılarının zamansal sebeplerden ötürü Slack üzerinden yapılmasına karar verilmiştir. Daily Scrum toplantısı örneği jpeg veya word olarak Readme'de tarafımızdan paylaşılmaktadır: [Sprint 1 Daily Scrum Chats](https://github.com/OyunveUygulamaAkademisi/BootcampScrumTemplate/blob/main/ProjectManagement/Sprint1Documents/DailyScrumMeetingNotesSprint1.docx?raw=true)
 
 - **Sprint board update**: Sprint board screenshotları:
+Sprint board üzerinde user story’lerin sprint boyunca geçirdiği durum değişiklikleri Azure DevOps üzerinden takip edilmiştir.
 <img width="1133" height="825" alt="1" src="https://github.com/user-attachments/assets/57b0c165-260c-4a79-abee-53a733128cf5" />
 <img width="1253" height="829" alt="2" src="https://github.com/user-attachments/assets/e7b51b1f-931a-46c3-96e7-33b6ff31c3b7" />
 <img width="1260" height="815" alt="3" src="https://github.com/user-attachments/assets/c7e902c7-076a-4300-96a0-b98e41f9daf8" />
@@ -67,19 +87,44 @@ Story'ler yapılacak işlere (task'lere) bölünmüştür. Miro Board'da gözük
 
 
 - **Ürün Durumu**: Ekran görüntüleri:
+Sprint 1 kapsamında Beautrics’in ilk kullanıcı akışını gösterebilmek amacıyla Figma üzerinde başlangıç seviyesinde wireframe tasarımı hazırlanmıştır. Bu sprintte ürünün tüm fonksiyonlarının tamamlanmasından ziyade, temel kullanıcı deneyiminin görselleştirilmesine ve geliştirme sürecine yön verecek ilk arayüz yapısının oluşturulmasına odaklanılmıştır.
 
-<img width="709" height="384" alt="image" src="https://github.com/user-attachments/assets/c1ab7659-0bc1-4e51-a307-226eb94f0ecd" />
-<img width="536" height="617" alt="image" src="https://github.com/user-attachments/assets/7c46e23e-80be-4c99-b968-b58cbbba9aa4" />
+<img width="1470" height="790" alt="image" src="https://github.com/user-attachments/assets/d3ee1eca-b297-49c4-87b1-93a460560a8a" />
+<img width="1472" height="794" alt="image" src="https://github.com/user-attachments/assets/6326e881-c3ee-4380-b559-645689656564" />
+<img width="1466" height="787" alt="image" src="https://github.com/user-attachments/assets/53423e8b-6c19-47ae-859a-c9e45ac9de2d" />
+
+
+## Sprint Review
+
+Sprint Review sonucunda Sprint 1 hedefinin büyük ölçüde karşılandığı görülmüştür. Sprint başında planlanan 100 story point’in 92 story point’lik kısmı tamamlanmış, kalan 8 story point ise Sprint 2’ye aktarılmıştır.
+
+Sprint sonunda alınan kararlar:
+
+- Supabase üzerinde oluşturulan temel yapı, sonraki sprintlerde kullanıcı profili, onboarding, favoriler, sepet ve chatbot önerileriyle genişletilecektir.
+- Sprint sonunda In Progress durumda kalan kullanıcı tarafı task’larının Sprint 2’de tamamlanması ve test edilmesi kararlaştırılmıştır.
+
+Sprint Review katılımcıları:
+- Edanur Ay
+- Sude Gül ÜZÜM
+- Ayşegül Yılmaz
+- Muhammet Yusuf Yılmaz
+- Abdulkadir Temizoğlu
+
+
+## Sprint Retrospective
+
+Sprint 1 sonunda takım içi süreç, görev dağılımı ve board yönetimi açısından aşağıdaki değerlendirmeler yapılmıştır:
+
+- User story ve task ayrımının board üzerinde daha net takip edilmesi gerektiği görülmüştür.
+- Story point tahminlerinin sprint planlama sırasında daha detaylı değerlendirilmesi gerektiği belirlenmiştir.
+- Sprint sonunda kalan işlerin Sprint 2’ye daha net acceptance criteria ile aktarılmasına karar verilmiştir.
+- Takım içindeki görev dağılımının daha dengeli yapılması ve task sorumluluklarının sprint başında netleştirilmesi gerektiği belirlenmiştir.
 
 
 
-- **Sprint Review**: 
-Alınan kararlar: Veritabanı oluşturması email ile toplanacak veriler için gerekli görülmüştür. Fakat bir yandan da veritabanı form sayfası için gerekli olmamıştır. O sebeple PBI bir sonraki sprint'e aktarılmıştır. Çıkan ürünün çalışmasında ve testlerinde bir problem görülmemiştir. Ekstra koyulması gereken özellikler belirlenmiştir. Sprint Review katılımcıları: ......
+## Sprint 2’ye Aktarılan İşler
 
-- **Sprint Retrospective:**
-  - Takım içindeki görev dağılımıyla ilgili düzenleme yapılması kararı alınmıştır
-  - Tahmin puanları gözden geçirilmeli ve sprint planlama toplantılarında gerekli geri bildirimlerin developer'lar tarafından verildiğine emin olunmalı
-  - Unit test'ler için ayrılan efor/saat arttırılmalı 
+Sprint 1 sonunda tamamlanmamış veya doğrulama süreci devam eden işler Sprint 2’ye aktarılmıştır:
 
 ---
 
