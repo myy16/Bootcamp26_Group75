@@ -92,9 +92,11 @@ Sprint board üzerinde user story’lerin sprint boyunca geçirdiği durum deği
 
 
 
-- **Ürün Durumu**: Ekran görüntüleri:
+- **Ürün Durumu**:
+  
 Sprint 1 kapsamında Beautrics’in ilk kullanıcı akışını gösterebilmek amacıyla Figma üzerinde başlangıç seviyesinde wireframe tasarımı hazırlanmıştır. Bu sprintte ürünün tüm fonksiyonlarının tamamlanmasından ziyade, temel kullanıcı deneyiminin görselleştirilmesine ve geliştirme sürecine yön verecek ilk arayüz yapısının oluşturulmasına odaklanılmıştır.
 
+Ekran görüntüleri:
 <img width="1470" height="790" alt="image" src="https://github.com/user-attachments/assets/d3ee1eca-b297-49c4-87b1-93a460560a8a" />
 <img width="1472" height="794" alt="image" src="https://github.com/user-attachments/assets/6326e881-c3ee-4380-b559-645689656564" />
 <img width="1466" height="787" alt="image" src="https://github.com/user-attachments/assets/53423e8b-6c19-47ae-859a-c9e45ac9de2d" />
