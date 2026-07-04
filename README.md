@@ -42,7 +42,9 @@ Beautrics, kullanıcıların kişisel bakım harcamalarını optimize ederken ay
 
 ## Product Backlog URL
 
-[Miro Backlog Board](https://miro.com/app/board/uXjVOSSCpsI=/)
+## Product Backlog URL
+
+[Miro Backlog Board](https://miro.com/app/board/uXjVH-rX4N8=/?share_link_id=813882419570)
 
 ---
 
