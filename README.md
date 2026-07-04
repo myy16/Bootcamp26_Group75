@@ -73,7 +73,13 @@ Sprint 1 kapsamında ele alınan temel user story’ler:
 US-06 kapsamında yer alan veritabanı güvenilirliği, tutarlılığı ve sorgulanabilirliği ihtiyacı ayrı bir user story olarak devam ettirilmemiştir. Bu kapsam, US-01 ve US-02 altında yer alan veritabanı modelleme, Supabase kurulumu, ürün-mağaza ilişkisi ve veri doğrulama task’larına dağıtılmıştır. Bu nedenle ilgili kart board üzerinde Rejected/Removed alanında gösterilmiştir.
 
 
-- **Daily Scrum**: Daily Scrum toplantılarının zamansal sebeplerden ötürü Slack üzerinden yapılmasına karar verilmiştir. Daily Scrum toplantısı örneği jpeg veya word olarak Readme'de tarafımızdan paylaşılmaktadır: [Sprint 1 Daily Scrum Chats](https://github.com/OyunveUygulamaAkademisi/BootcampScrumTemplate/blob/main/ProjectManagement/Sprint1Documents/DailyScrumMeetingNotesSprint1.docx?raw=true)
+- **Daily Scrum**:
+
+Sprint 1 Daily Scrum toplantıları takım üyelerinin uygunluk durumuna göre Google Meet üzerinden gerçekleştirilmiştir. Toplantılarda her takım üyesinin üzerinde çalıştığı görevler, tamamlanan işler, devam eden çalışmalar ve varsa engel durumları değerlendirilmiştir.
+
+Daily Scrum sürecinde özellikle Azure DevOps board üzerindeki user story ve task durumları takip edilmiştir. Backlog, To Do, In Progress, Rejected ve Done kolonlarındaki ilerlemeler kontrol edilmiş; tamamlanan görevlerin doğru statüye taşınmasına dikkat edilmiştir.
+
+Sprint 1 boyunca yapılan Google Meet toplantılarında veritabanı yapısının oluşturulması, Supabase kurulumu, ürün-mağaza ilişkisi, web scraping, N8N iş akışı, Figma wireframe tasarımı, kullanıcı kayıt/giriş süreci, favoriler, sepet ve kullanıcı profili gibi başlıklar ele alınmıştır.
 
 - **Sprint board update**: Sprint board screenshotları:
 Sprint board üzerinde user story’lerin sprint boyunca geçirdiği durum değişiklikleri Azure DevOps üzerinden takip edilmiştir.
