@@ -3,55 +3,64 @@ import json
 import sys
 import io
 
-# Set terminal stdout encoding to UTF-8 to prevent charmap/emoji print errors on Windows
+# Set terminal stdout encoding to UTF-8
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 base_url = "http://127.0.0.1:8000"
-user_id = "test-user-uuid-999"
-session_id = "session-1"
+user_id = "test-user-v2-001"
+session_id = "session-v2"
 
-# Clear previous session if any
+# Clear previous session
 requests.post(f"{base_url}/session/clear?user_id={user_id}&session_id={session_id}")
 
-print("--- Step 1: Initial conversation message (Profile is empty) ---")
-payload = {
-    "user_id": user_id,
-    "message": "Merhaba",
-    "session_id": session_id
-}
+def send_chat(message):
+    payload = {
+        "user_id": user_id,
+        "message": message,
+        "session_id": session_id
+    }
+    response = requests.post(f"{base_url}/chat", json=payload)
+    data = response.json()
+    return data
 
-response = requests.post(f"{base_url}/chat", json=payload)
-data = response.json()
-print(f"Status Code: {response.status_code}")
-print(f"Chatbot Response:\n{data.get('response')}\n")
-print(f"Missing Fields: {data.get('missing_fields')}")
-print(f"Profile: {data.get('profile')}")
+print("=" * 60)
+print("BEAUTRICS CHATBOT v2 - INTEGRATION TEST")
+print("=" * 60)
 
-print("\n--- Step 2: Answering the onboarding question ---")
-payload = {
-    "user_id": user_id,
-    "message": "Cildim kuru ve saçım normal",
-    "session_id": session_id
-}
+# Step 1: Empty profile - should ask for profile info
+print("\n--- ADIM 1: Boş profille giriş ---")
+result = send_chat("Merhaba")
+print(f"Yanıt:\n{result['response']}")
+print(f"Eksik Alanlar: {result['missing_fields']}")
+print(f"Profil: {result['profile']}")
 
-response = requests.post(f"{base_url}/chat", json=payload)
-data = response.json()
-print(f"Status Code: {response.status_code}")
-print(f"Chatbot Response:\n{data.get('response')}\n")
-print(f"Missing Fields: {data.get('missing_fields')}")
-print(f"Profile: {data.get('profile')}")
+# Step 2: Provide profile info - should ONLY confirm, NOT recommend
+print("\n--- ADIM 2: Profil bilgisi verme (SADECE onay bekleniyor) ---")
+result = send_chat("Cildim yağlı, saçım kuru")
+print(f"Yanıt:\n{result['response']}")
+print(f"Eksik Alanlar: {result['missing_fields']}")
+print(f"Profil: {result['profile']}")
 
-print("\n--- Step 3: Asking for recommendations (Now that profile is complete) ---")
-payload = {
-    "user_id": user_id,
-    "message": "Bana uygun bir nemlendirici önerir misin?",
-    "session_id": session_id
-}
+# Step 3: Ask for recommendations - should use category matching
+print("\n--- ADIM 3: Nemlendirici önerisi (kategori bazlı arama) ---")
+result = send_chat("Bana nemlendirici önerir misin?")
+print(f"Yanıt:\n{result['response']}")
+print(f"Eksik Alanlar: {result['missing_fields']}")
+print(f"Bulunan Ürün Sayısı: {len(result.get('retrieved_products', []))}")
 
-response = requests.post(f"{base_url}/chat", json=payload)
-data = response.json()
-print(f"Status Code: {response.status_code}")
-print(f"Chatbot Response:\n{data.get('response')}\n")
-print(f"Missing Fields: {data.get('missing_fields')}")
-print(f"Profile: {data.get('profile')}")
-print(f"Retrieved Products Count: {len(data.get('retrieved_products', []))}")
+# Check market names in retrieved products
+print("\n--- MAĞAZA İSİM KONTROLÜ ---")
+for prod in result.get('retrieved_products', []):
+    print(f"Ürün: {prod['universal_name']}")
+    for st in prod.get('store_mappings', []):
+        print(f"  m_id={st['m_id']} -> {st.get('market_name', 'ÇÖZÜLEMEDI')} | {st['current_price']} TL")
+
+# Step 4: Ask for ruj - should match dudak/ruj category
+print("\n--- ADIM 4: Ruj önerisi (farklı kategori testi) ---")
+result = send_chat("Ruj arıyorum")
+print(f"Yanıt:\n{result['response']}")
+print(f"Bulunan Ürün Sayısı: {len(result.get('retrieved_products', []))}")
+
+print("\n" + "=" * 60)
+print("TEST TAMAMLANDI")
+print("=" * 60)
