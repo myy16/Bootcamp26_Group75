@@ -1,5 +1,7 @@
 import os
+import re
 import json
+import time
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
@@ -24,7 +26,6 @@ CHAT_CONFIG = genai.GenerationConfig(
 EXTRACTION_CONFIG = genai.GenerationConfig(
     max_output_tokens=200,
     temperature=0.1,
-    response_mime_type="application/json",
 )
 
 INTENT_CONFIG = genai.GenerationConfig(
@@ -46,6 +47,46 @@ class AgentState(BaseModel):
 
 # === Helper Functions ===
 
+def parse_json_from_text(text: str) -> dict:
+    """Extracts JSON object from text that may contain markdown or extra content."""
+    # Try direct parse first
+    try:
+        return json.loads(text.strip())
+    except (json.JSONDecodeError, ValueError):
+        pass
+    # Try extracting from markdown code block
+    match = re.search(r'```(?:json)?\s*\n?(.+?)\n?```', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(1).strip())
+        except (json.JSONDecodeError, ValueError):
+            pass
+    # Try finding a JSON object pattern
+    match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return {}
+
+
+def retry_generate(model, contents, max_retries=3):
+    """Wraps model.generate_content with retry logic for rate limit errors."""
+    for attempt in range(max_retries):
+        try:
+            return model.generate_content(contents)
+        except Exception as e:
+            err_str = str(e).lower()
+            if "resource_exhausted" in err_str or "429" in err_str or "quota" in err_str:
+                wait = 15 * (attempt + 1)
+                print(f"Rate limit hit, waiting {wait}s (attempt {attempt+1}/{max_retries})...")
+                time.sleep(wait)
+            else:
+                raise
+    raise Exception("Max retries exceeded for Gemini API call")
+
+
 def get_last_user_message(messages: list) -> str:
     for msg in reversed(messages):
         if msg.get("role") == "user":
@@ -59,17 +100,18 @@ def extract_profile_info(user_message: str) -> dict:
         model = genai.GenerativeModel("gemini-3.5-flash", generation_config=EXTRACTION_CONFIG)
 
         prompt = (
-            "Kullanıcının mesajından cilt ve saç profili bilgilerini çıkar.\n"
-            "JSON formatında döndür. Belirtilmemiş alanlar için null kullan.\n"
+            "Asagidaki mesajdan cilt ve sac profili bilgilerini cikar.\n"
+            "SADECE bir JSON nesnesi dondur, baska hicbir sey yazma.\n"
+            "Ornek cikti: {\"skin_type\": \"kuru\", \"hair_type\": \"normal\", \"skin_concerns\": []}\n"
             "Anahtarlar:\n"
-            "- skin_type: 'kuru', 'yağlı', 'karma' veya 'normal' (İngilizce terimler varsa çevir)\n"
-            "- hair_type: 'kuru', 'yağlı', 'normal' veya 'karma'\n"
-            "- skin_concerns: liste olarak (ör: ['akne', 'leke', 'kırışıklık', 'gözenek'])\n\n"
-            f"Kullanıcı mesajı: {user_message}"
+            "- skin_type: 'kuru', 'yagli', 'karma' veya 'normal' (null eger belirtilmediyse)\n"
+            "- hair_type: 'kuru', 'yagli', 'normal' veya 'karma' (null eger belirtilmediyse)\n"
+            "- skin_concerns: liste (orn: ['akne', 'leke']) veya bos liste []\n\n"
+            f"Mesaj: {user_message}"
         )
 
-        response = model.generate_content(prompt)
-        return json.loads(response.text)
+        response = retry_generate(model, prompt)
+        return parse_json_from_text(response.text)
     except Exception as e:
         print(f"Error extracting profile info: {e}")
         return {}
@@ -88,7 +130,7 @@ def determine_intent(user_message: str) -> str:
             f"Mesaj: {user_message}"
         )
 
-        response = model.generate_content(prompt)
+        response = retry_generate(model, prompt)
         intent = response.text.strip().lower()
         return "recommendation" if "recommendation" in intent else "general"
     except Exception as e:
@@ -226,7 +268,7 @@ def general_chat_node(state: AgentState):
             prefix = "Kullanıcı" if msg.get("role") == "user" else "Asistan"
             contents.append(f"{prefix}: {msg.get('content')}")
 
-        response = model.generate_content(contents)
+        response = retry_generate(model, contents)
         content = response.text
 
         new_messages = state.messages.copy()
@@ -303,7 +345,7 @@ def vector_rag_node(state: AgentState):
             prefix = "Kullanıcı" if msg.get("role") == "user" else "Asistan"
             contents.append(f"{prefix}: {msg.get('content')}")
 
-        chat_response = model.generate_content(contents)
+        chat_response = retry_generate(model, contents)
         content = chat_response.text
 
         new_messages = state.messages.copy()
