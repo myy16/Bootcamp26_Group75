@@ -43,3 +43,21 @@ on public.user_skin_concerns
 for delete
 to authenticated
 using (auth.uid() = user_id);
+
+create policy "Authenticated users can view skin types"
+on public.skin_types
+for select
+to authenticated
+using (true);
+
+create policy "Authenticated users can view skin concerns"
+on public.skin_concerns
+for select
+to authenticated
+using (true);
+
+create policy "Authenticated users can view hair types"
+on public.hair_types
+for select
+to authenticated
+using (true);
