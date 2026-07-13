@@ -139,8 +139,64 @@ Sprint 1 sonunda tamamlanmamış veya doğrulama süreci devam eden işler Sprin
 # Sprint 2
 
 
+- **Daily Scrum**:
+
+
+- **Sprint board update**: Sprint board screenshotları:
+Sprint board üzerinde user story’lerin sprint boyunca geçirdiği durum değişiklikleri Azure DevOps üzerinden takip edilmiştir.
+<img width="1737" height="829" alt="1" src="https://github.com/user-attachments/assets/b675498c-509c-4c7a-9205-1f80d9a8e16e" />
+<img width="1738" height="808" alt="2" src="https://github.com/user-attachments/assets/d09767bc-6431-43aa-a28b-f384401d8f5d" />
+<img width="1733" height="829" alt="3" src="https://github.com/user-attachments/assets/3eba0bbf-50ed-413d-b80d-ed5ba6841e68" />
+<img width="1709" height="815" alt="4" src="https://github.com/user-attachments/assets/c9923f48-f0c9-43ce-8d3c-e0919956ddcb" />
+<img width="1713" height="832" alt="5" src="https://github.com/user-attachments/assets/a242bfb2-4246-4532-9d19-2f410b6c3c03" />
+
+
+
+- **Ürün Durumu**:
+  
+Ekran görüntüleri:
+
+
+
+## Sprint Review
+
+
+
+## Sprint Retrospective
+
+
+
+
+
+## Sprint 3’e Aktarılan İşler
+
+
 ---
 
 # Sprint 3
+
+
+- **Daily Scrum**:
+
+
+- **Sprint board update**: Sprint board screenshotları:
+Sprint board üzerinde user story’lerin sprint boyunca geçirdiği durum değişiklikleri Azure DevOps üzerinden takip edilmiştir.
+
+
+
+
+- **Ürün Durumu**:
+  
+Ekran görüntüleri:
+
+
+
+## Sprint Review
+
+
+
+## Sprint Retrospective
+
+
 
 ---
