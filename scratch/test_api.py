@@ -7,7 +7,8 @@ import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 base_url = "http://127.0.0.1:8000"
-user_id = "test-user-v2-001"
+# Use a valid UUID format to avoid Postgres syntax issues during DB check
+user_id = "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
 session_id = "session-v2"
 
 # Clear previous session

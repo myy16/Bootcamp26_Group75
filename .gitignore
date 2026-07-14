@@ -2,6 +2,7 @@
 beautrics.md
 .env
 scratch/
-__pycache__/
-*.pyc
+**/__pycache__/
+**/*.pyc
 .gemini/
+

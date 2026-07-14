@@ -5,7 +5,7 @@ import time
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
-import google.generativeai as genai
+from openai import OpenAI
 
 # Import database functions
 from test.database import (
@@ -13,26 +13,10 @@ from test.database import (
     search_products_by_keyword, get_market_name, get_markets_map
 )
 
-# Configure native Gemini API
+# Configure OpenAI API
 api_key = os.getenv("OPENAI_API_KEY")
-genai.configure(api_key=api_key)
-
-# Gemini generation config with token limits
-CHAT_CONFIG = genai.GenerationConfig(
-    max_output_tokens=500,
-    temperature=0.7,
-)
-
-EXTRACTION_CONFIG = genai.GenerationConfig(
-    max_output_tokens=200,
-    temperature=0.1,
-)
-
-INTENT_CONFIG = genai.GenerationConfig(
-    max_output_tokens=10,
-    temperature=0.0,
-)
-
+# Initialize OpenAI client with official base URL to bypass any proxy/Gemini base url in .env
+client = OpenAI(api_key=api_key, base_url="https://api.openai.com/v1")
 
 # === Define State Schema ===
 class AgentState(BaseModel):
@@ -49,7 +33,6 @@ class AgentState(BaseModel):
 
 def parse_json_from_text(text: str) -> dict:
     """Extracts JSON object from text that may contain markdown or extra content."""
-    # Try direct parse first
     try:
         return json.loads(text.strip())
     except (json.JSONDecodeError, ValueError):
@@ -71,20 +54,20 @@ def parse_json_from_text(text: str) -> dict:
     return {}
 
 
-def retry_generate(model, contents, max_retries=3):
-    """Wraps model.generate_content with retry logic for rate limit errors."""
+def retry_openai_call(call_func, max_retries=3):
+    """Wraps OpenAI API call with retry logic for rate limit (429) errors."""
     for attempt in range(max_retries):
         try:
-            return model.generate_content(contents)
+            return call_func()
         except Exception as e:
             err_str = str(e).lower()
-            if "resource_exhausted" in err_str or "429" in err_str or "quota" in err_str:
-                wait = 15 * (attempt + 1)
-                print(f"Rate limit hit, waiting {wait}s (attempt {attempt+1}/{max_retries})...")
+            if "rate_limit" in err_str or "429" in err_str or "quota" in err_str or "limit" in err_str:
+                wait = 5 * (attempt + 1)
+                print(f"OpenAI rate limit hit, waiting {wait}s (attempt {attempt+1}/{max_retries})...")
                 time.sleep(wait)
             else:
                 raise
-    raise Exception("Max retries exceeded for Gemini API call")
+    raise Exception("Max retries exceeded for OpenAI API call")
 
 
 def get_last_user_message(messages: list) -> str:
@@ -95,23 +78,33 @@ def get_last_user_message(messages: list) -> str:
 
 
 def extract_profile_info(user_message: str) -> dict:
-    """Extracts skin/hair profile from user message using Gemini."""
+    """Extracts skin/hair profile from user message using gpt-4o-mini."""
     try:
-        model = genai.GenerativeModel("gemini-3.5-flash", generation_config=EXTRACTION_CONFIG)
-
         prompt = (
-            "Asagidaki mesajdan cilt ve sac profili bilgilerini cikar.\n"
-            "SADECE bir JSON nesnesi dondur, baska hicbir sey yazma.\n"
-            "Ornek cikti: {\"skin_type\": \"kuru\", \"hair_type\": \"normal\", \"skin_concerns\": []}\n"
-            "Anahtarlar:\n"
-            "- skin_type: 'kuru', 'yagli', 'karma' veya 'normal' (null eger belirtilmediyse)\n"
-            "- hair_type: 'kuru', 'yagli', 'normal' veya 'karma' (null eger belirtilmediyse)\n"
-            "- skin_concerns: liste (orn: ['akne', 'leke']) veya bos liste []\n\n"
-            f"Mesaj: {user_message}"
+            "Aşağıdaki kullanıcı mesajından cilt ve saç profili bilgilerini çıkar.\n"
+            "SADECE bir JSON nesnesi döndür, başka hiçbir şey yazma.\n"
+            "Örnek çıktı: {\"skin_type\": \"kuru\", \"hair_type\": \"normal\", \"skin_concerns\": []}\n"
+            "Kurallar:\n"
+            "- skin_type: 'kuru', 'yağlı', 'karma' veya 'normal' (belirtilmemişse null)\n"
+            "- hair_type: 'kuru', 'yağlı', 'normal' veya 'karma' (belirtilmemişse null)\n"
+            "- skin_concerns: bulunan endişelerin listesi (örn: ['akne', 'leke']) veya boş liste []\n\n"
+            f"Kullanıcı mesajı: {user_message}"
         )
 
-        response = retry_generate(model, prompt)
-        return parse_json_from_text(response.text)
+        def make_call():
+            return client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "Sen bir kozmetik profil çıkarıcısısın."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=200,
+                temperature=0.1,
+                response_format={"type": "json_object"}
+            )
+
+        response = retry_openai_call(make_call)
+        return parse_json_from_text(response.choices[0].message.content)
     except Exception as e:
         print(f"Error extracting profile info: {e}")
         return {}
@@ -120,8 +113,6 @@ def extract_profile_info(user_message: str) -> dict:
 def determine_intent(user_message: str) -> str:
     """Determines if the user wants product recommendations or general chat."""
     try:
-        model = genai.GenerativeModel("gemini-3.5-flash", generation_config=INTENT_CONFIG)
-
         prompt = (
             "Kullanıcının mesajını analiz et. Kozmetik/bakım ürünü önerisi, fiyat karşılaştırması "
             "veya bakım rutini istiyorsa 'recommendation' döndür. "
@@ -130,8 +121,19 @@ def determine_intent(user_message: str) -> str:
             f"Mesaj: {user_message}"
         )
 
-        response = retry_generate(model, prompt)
-        intent = response.text.strip().lower()
+        def make_call():
+            return client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "Sen bir niyet analizi asistanısın. Sadece tek kelime (recommendation veya general) cevap verirsin."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=10,
+                temperature=0.0
+            )
+
+        response = retry_openai_call(make_call)
+        intent = response.choices[0].message.content.strip().lower()
         return "recommendation" if "recommendation" in intent else "general"
     except Exception as e:
         print(f"Error determining intent: {e}")
@@ -239,7 +241,7 @@ def profile_confirmed_node(state: AgentState):
         f"Profiliniz kaydedildi:\n"
         f"- Cilt tipi: **{skin}**\n"
         f"- Saç tipi: **{hair}**{concern_text}\n\n"
-        f"Artık size özel ürün önerileri alabirsiniz. "
+        f"Artık size özel ürün önerileri alabilirsiniz. "
         f"Örneğin *\"Bana nemlendirici öner\"* veya *\"En uygun fondöten hangisi?\"* diye sorabilirsiniz."
     )
 
@@ -251,8 +253,6 @@ def profile_confirmed_node(state: AgentState):
 def general_chat_node(state: AgentState):
     """Handles general conversation. Short and helpful."""
     try:
-        model = genai.GenerativeModel("gemini-3.5-flash", generation_config=CHAT_CONFIG)
-
         system_prompt = (
             "Sen Beautrics kozmetik danışmanısın. Kısa ve öz cevaplar ver.\n"
             "KURALLAR:\n"
@@ -263,13 +263,21 @@ def general_chat_node(state: AgentState):
             "- Türkçe konuş."
         )
 
-        contents = [system_prompt]
+        messages_payload = [{"role": "system", "content": system_prompt}]
         for msg in state.messages:
-            prefix = "Kullanıcı" if msg.get("role") == "user" else "Asistan"
-            contents.append(f"{prefix}: {msg.get('content')}")
+            role = "user" if msg.get("role") == "user" else "assistant"
+            messages_payload.append({"role": role, "content": msg.get("content")})
 
-        response = retry_generate(model, contents)
-        content = response.text
+        def make_call():
+            return client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages_payload,
+                max_tokens=250,
+                temperature=0.7
+            )
+
+        response = retry_openai_call(make_call)
+        content = response.choices[0].message.content
 
         new_messages = state.messages.copy()
         new_messages.append({"role": "assistant", "content": content})
@@ -293,17 +301,21 @@ def vector_rag_node(state: AgentState):
         # 1. Search products (keyword-based category search first)
         matched_products = search_products_by_keyword(last_msg, match_count=3)
 
-        # 2. If keyword search found nothing, try vector search
+        # 2. If keyword search found nothing, try vector search (OpenAI Embeddings)
         if not matched_products:
             try:
                 profile_summary = f"Cilt: {profile.get('skin_type')}, Saç: {profile.get('hair_type')}"
                 search_query = f"{last_msg}. {profile_summary}"
 
-                emb_res = genai.embed_content(
-                    model="models/gemini-embedding-2",
-                    content=search_query
-                )
-                matched_products = match_products(emb_res['embedding'], match_count=3)
+                def make_emb():
+                    return client.embeddings.create(
+                        model="text-embedding-3-small",
+                        input=search_query
+                    )
+
+                emb_res = retry_openai_call(make_emb)
+                query_embedding = emb_res.data[0].embedding
+                matched_products = match_products(query_embedding, match_count=3)
             except Exception as emb_err:
                 print(f"Vector search also failed: {emb_err}")
 
@@ -324,7 +336,7 @@ def vector_rag_node(state: AgentState):
         # 6. Generate response with strict prompt
         system_prompt = (
             "Sen Beautrics kozmetik danışmanısın. Kullanıcının profiline uygun ürün önerisi yap.\n\n"
-            "KATIL KURALLAR:\n"
+            "KATI KURALLAR:\n"
             "1. SADECE aşağıdaki ürün listesindeki ürünleri öner. Listeye olmayan ürün ekleme.\n"
             "2. Maksimum 3 ürün öner.\n"
             "3. Her ürün için: isim, mağaza adı, fiyat ve satın alma linkini yaz.\n"
@@ -338,15 +350,21 @@ def vector_rag_node(state: AgentState):
             f"ÜRÜN LİSTESİ:\n{product_context}"
         )
 
-        model = genai.GenerativeModel("gemini-3.5-flash", generation_config=CHAT_CONFIG)
-
-        contents = [system_prompt]
+        messages_payload = [{"role": "system", "content": system_prompt}]
         for msg in state.messages:
-            prefix = "Kullanıcı" if msg.get("role") == "user" else "Asistan"
-            contents.append(f"{prefix}: {msg.get('content')}")
+            role = "user" if msg.get("role") == "user" else "assistant"
+            messages_payload.append({"role": role, "content": msg.get("content")})
 
-        chat_response = retry_generate(model, contents)
-        content = chat_response.text
+        def make_call():
+            return client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages_payload,
+                max_tokens=400,
+                temperature=0.7
+            )
+
+        chat_response = retry_openai_call(make_call)
+        content = chat_response.choices[0].message.content
 
         new_messages = state.messages.copy()
         new_messages.append({"role": "assistant", "content": content})
