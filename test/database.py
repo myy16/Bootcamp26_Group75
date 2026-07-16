@@ -13,9 +13,6 @@ SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY")
 
 supabase_client: Client = None
 
-# In-memory mock fallback store for user profiles during testing
-MOCK_USER_PROFILES = {}
-
 # Cached markets map {m_id: market_name}
 MARKETS_MAP = {}
 
@@ -199,14 +196,13 @@ def load_onboarding_lookups():
 def get_user_profile(user_id: str):
     """
     Fetches the profile of a user from the 'user_profiles' table with relation joins.
-    Falls back to in-memory store if the user_id is not a valid UUID or DB query fails.
+    Uses Supabase as the source of truth.
     """
     if not is_valid_uuid(user_id):
-        # Graceful fallback to mock store for non-UUID strings
-        return MOCK_USER_PROFILES.get(user_id)
+        raise ValueError(f"Invalid user_id for Supabase profile lookup: {user_id}")
 
     if not supabase_client:
-        return MOCK_USER_PROFILES.get(user_id)
+        raise RuntimeError("Supabase client is not configured.")
         
     try:
         # Query user profile with join on skin_types and hair_types
@@ -238,39 +234,24 @@ def get_user_profile(user_id: str):
                 "max_budget": profile_row.get("max_budget"),
                 "onboarding_completed": profile_row.get("onboarding_completed", False),
             }
-            # Sync to local mock cache
-            MOCK_USER_PROFILES[user_id] = profile
             return profile
-            
+
     except Exception as e:
-        print(f"DB profile fetch failed or RLS blocked (using mock fallback): {e}")
-        
-    return MOCK_USER_PROFILES.get(user_id)
+        print(f"DB profile fetch failed: {e}")
+        raise
 
 
 def update_user_profile(user_id: str, profile_data: dict):
     """
     Inserts or updates the profile of a user in the 'user_profiles' table.
     Gracefully maps skin_type/hair_type strings to foreign key IDs.
-    Falls back to in-memory store if the user_id is not a valid UUID or DB query fails.
+    Uses Supabase as the source of truth.
     """
-    # Save to mock memory first
-    MOCK_USER_PROFILES[user_id] = {
-        "user_id": user_id,
-        "full_name": profile_data.get("full_name") or "User",
-        "skin_type": profile_data.get("skin_type"),
-        "hair_type": profile_data.get("hair_type"),
-        "skin_concerns": profile_data.get("skin_concerns", []),
-        "min_budget": profile_data.get("min_budget"),
-        "max_budget": profile_data.get("max_budget"),
-    }
-
     if not is_valid_uuid(user_id):
-        # Graceful fallback to mock store for non-UUID strings
-        return MOCK_USER_PROFILES[user_id]
+        raise ValueError(f"Invalid user_id for Supabase profile update: {user_id}")
 
     if not supabase_client:
-        return MOCK_USER_PROFILES[user_id]
+        raise RuntimeError("Supabase client is not configured.")
 
     try:
         # Load ID lookups
@@ -323,9 +304,8 @@ def update_user_profile(user_id: str, profile_data: dict):
         return get_user_profile(user_id)
         
     except Exception as e:
-        print(f"Error updating user profile in DB (saved in memory fallback): {e}")
-
-    return MOCK_USER_PROFILES[user_id]
+        print(f"Error updating user profile in DB: {e}")
+        raise
 
 
 def search_products_by_keyword(user_message: str, match_count: int = 3):
