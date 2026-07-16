@@ -11,18 +11,25 @@ from openai import OpenAI
 from test.database import (
     get_user_profile,
     update_user_profile,
-    match_products,
     search_products_by_keyword,
     search_products_for_profile,
     get_market_name,
     get_markets_map
 )
 
-# Configure OpenAI API
-api_key = os.getenv("OPENAI_API_KEY")
-# Initialize OpenAI client with official base URL to bypass any proxy/Gemini base url in .env
-client = OpenAI(api_key=api_key, base_url="https://api.openai.com/v1")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
+if not GROQ_API_KEY:
+    raise RuntimeError(
+        "GROQ_API_KEY bulunamadı. Proje kökündeki .env dosyasına "
+        "GROQ_API_KEY=gsk_... şeklinde ekleyin."
+    )
+
+client = OpenAI(
+    api_key=GROQ_API_KEY,
+    base_url="https://api.groq.com/openai/v1",
+)
 # === Define State Schema ===
 class AgentState(BaseModel):
     user_id: str
@@ -59,8 +66,8 @@ def parse_json_from_text(text: str) -> dict:
     return {}
 
 
-def retry_openai_call(call_func, max_retries=3):
-    """Wraps OpenAI API call with retry logic for rate limit (429) errors."""
+def retry_groq_call(call_func, max_retries=3):
+    """Wraps Groq API call with retry logic for rate limit (429) errors."""
     for attempt in range(max_retries):
         try:
             return call_func()
@@ -68,11 +75,11 @@ def retry_openai_call(call_func, max_retries=3):
             err_str = str(e).lower()
             if "rate_limit" in err_str or "429" in err_str or "quota" in err_str or "limit" in err_str:
                 wait = 5 * (attempt + 1)
-                print(f"OpenAI rate limit hit, waiting {wait}s (attempt {attempt+1}/{max_retries})...")
+                print(f"Groq rate limit hit, waiting {wait}s (attempt {attempt+1}/{max_retries})...")
                 time.sleep(wait)
             else:
                 raise
-    raise Exception("Max retries exceeded for OpenAI API call")
+    raise Exception("Max retries exceeded for Groq API call")
 
 
 def get_last_user_message(messages: list) -> str:
@@ -83,7 +90,7 @@ def get_last_user_message(messages: list) -> str:
 
 
 def extract_profile_info(user_message: str) -> dict:
-    """Extracts skin/hair profile from user message using gpt-4o-mini."""
+    """Extracts skin/hair profile from user message using Groq."""
     try:
         prompt = (
             "Aşağıdaki kullanıcı mesajından cilt ve saç profili bilgilerini çıkar.\n"
@@ -98,7 +105,7 @@ def extract_profile_info(user_message: str) -> dict:
 
         def make_call():
             return client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": "Sen bir kozmetik profil çıkarıcısısın."},
                     {"role": "user", "content": prompt}
@@ -108,7 +115,7 @@ def extract_profile_info(user_message: str) -> dict:
                 response_format={"type": "json_object"}
             )
 
-        response = retry_openai_call(make_call)
+        response = retry_groq_call(make_call)
         return parse_json_from_text(response.choices[0].message.content)
     except Exception as e:
         print(f"Error extracting profile info: {e}")
@@ -116,30 +123,73 @@ def extract_profile_info(user_message: str) -> dict:
 
 
 def determine_intent(user_message: str) -> str:
-    """Determines if the user wants product recommendations or general chat."""
+    """
+    Determines whether the user wants a product recommendation
+    or general conversation.
+    """
+
+    message_lower = user_message.lower()
+
+    recommendation_keywords = [
+        "öner",
+        "öneri",
+        "önerir misin",
+        "ürün",
+        "fiyat",
+        "en ucuz",
+        "karşılaştır",
+        "nemlendirici",
+        "serum",
+        "güneş kremi",
+        "fondöten",
+        "ruj",
+        "şampuan",
+        "saç kremi",
+        "tonik",
+        "temizleyici",
+        "maske",
+        "peeling",
+    ]
+
+    if any(keyword in message_lower for keyword in recommendation_keywords):
+        return "recommendation"
+
     try:
         prompt = (
-            "Kullanıcının mesajını analiz et. Kozmetik/bakım ürünü önerisi, fiyat karşılaştırması "
-            "veya bakım rutini istiyorsa 'recommendation' döndür. "
-            "Genel sohbet, selamlama veya ürünle ilgisiz soruysa 'general' döndür.\n"
+            "Kullanıcının mesajını analiz et. Kozmetik/bakım ürünü önerisi, "
+            "fiyat karşılaştırması veya bakım rutini istiyorsa "
+            "'recommendation' döndür. Genel sohbet, selamlama veya "
+            "ürünle ilgisiz soruysa 'general' döndür.\n"
             "Sadece tek kelime döndür: recommendation veya general\n\n"
             f"Mesaj: {user_message}"
         )
 
         def make_call():
             return client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": "Sen bir niyet analizi asistanısın. Sadece tek kelime (recommendation veya general) cevap verirsin."},
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "system",
+                        "content": (
+                            "Sen bir niyet analizi asistanısın. "
+                            "Sadece recommendation veya general yaz."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
                 ],
                 max_tokens=10,
-                temperature=0.0
+                temperature=0.0,
             )
 
-        response = retry_openai_call(make_call)
+        response = retry_groq_call(make_call)
         intent = response.choices[0].message.content.strip().lower()
-        return "recommendation" if "recommendation" in intent else "general"
+
+        return (
+            "recommendation"
+            if "recommendation" in intent
+            else "general"
+        )
+
     except Exception as e:
         print(f"Error determining intent: {e}")
         return "general"
@@ -167,7 +217,47 @@ def format_product_context(products: list) -> str:
             lines.append("   - Fiyat bilgisi bulunamadı")
 
     return "\n".join(lines)
+def build_product_response(products: list) -> str:
+    """LLM boş cevap verirse ürünlerden güvenli bir fallback metni oluşturur."""
+    if not products:
+        return "Bütçenize ve profilinize uygun ürün bulunamadı."
 
+    lines = ["Profilinize ve bütçenize uygun ürünler:"]
+
+    for product in products[:3]:
+        product_name = product.get("universal_name", "Ürün")
+        stores = product.get("store_mappings", [])
+
+        valid_stores = [
+            store
+            for store in stores
+            if store.get("current_price") is not None
+            and float(store.get("current_price", 0)) > 0
+        ]
+
+        if valid_stores:
+            cheapest_store = min(
+                valid_stores,
+                key=lambda store: float(store["current_price"]),
+            )
+
+            market_name = cheapest_store.get(
+                "market_name",
+                "Bilinmeyen mağaza",
+            )
+            price = cheapest_store.get("current_price")
+            url = cheapest_store.get("product_url", "#")
+
+            lines.append(
+                f"- {product_name}: {market_name} mağazasında "
+                f"{price} TL — [Satın Al]({url})"
+            )
+        else:
+            lines.append(
+                f"- {product_name}: Güncel fiyat bilgisi bulunamadı."
+            )
+
+    return "\n".join(lines)
 
 # === Graph Nodes ===
 
@@ -191,9 +281,15 @@ def fetch_profile_node(state: AgentState):
                 "full_name": existing_profile.get("full_name") or "User",
                 "skin_type": extracted.get("skin_type") or existing_profile.get("skin_type"),
                 "hair_type": extracted.get("hair_type") or existing_profile.get("hair_type"),
-                "skin_concerns": list(set(
-                    existing_profile.get("skin_concerns", []) + extracted.get("skin_concerns", [])
-                )) if "skin_concerns" in extracted else existing_profile.get("skin_concerns", [])
+                "skin_concerns": list(
+                    set(
+                    existing_profile.get("skin_concerns", [])
+                    + extracted.get("skin_concerns", [])
+                )) if "skin_concerns" in extracted
+                else existing_profile.get("skin_concerns", []),
+
+                "min_budget": existing_profile.get("min_budget"),
+                "max_budget": existing_profile.get("max_budget"),
             }
             update_user_profile(user_id, merged)
 
@@ -275,13 +371,13 @@ def general_chat_node(state: AgentState):
 
         def make_call():
             return client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=GROQ_MODEL,
                 messages=messages_payload,
                 max_tokens=250,
                 temperature=0.7
             )
 
-        response = retry_openai_call(make_call)
+        response = retry_groq_call(make_call)
         content = response.choices[0].message.content
 
         new_messages = state.messages.copy()
@@ -310,7 +406,7 @@ def vector_rag_node(state: AgentState):
             match_count=3
         )
 
-        # 2. If keyword search found nothing, try vector search (OpenAI Embeddings)
+        # 2. If keyword search found nothing, try vector search (vector search)
         if not matched_products:
             try:
                 profile_summary = f"Cilt: {profile.get('skin_type')}, Saç: {profile.get('hair_type')}"
@@ -322,7 +418,7 @@ def vector_rag_node(state: AgentState):
                         input=search_query
                     )
 
-                emb_res = retry_openai_call(make_emb)
+                emb_res = retry_groq_call(make_emb)
                 query_embedding = emb_res.data[0].embedding
                 matched_products = match_products(query_embedding, match_count=3)
             except Exception as emb_err:
@@ -368,14 +464,20 @@ def vector_rag_node(state: AgentState):
 
         def make_call():
             return client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=GROQ_MODEL,
                 messages=messages_payload,
                 max_tokens=400,
                 temperature=0.7
             )
 
-        chat_response = retry_openai_call(make_call)
-        content = chat_response.choices[0].message.content
+        chat_response = retry_groq_call(make_call)
+
+        content = chat_response.choices[0].message.content or ""
+        content = content.strip()
+
+        if not content:
+            print("Groq returned empty content. Using product fallback.")
+            content = build_product_response(matched_products)
 
         new_messages = state.messages.copy()
         new_messages.append({"role": "assistant", "content": content})
@@ -416,6 +518,7 @@ def route_after_profile(state: AgentState):
     # 3. Profile is complete, determine intent
     last_msg = get_last_user_message(state.messages)
     intent = determine_intent(last_msg)
+    print(f"Intent decision: {intent} | Message: {last_msg}")
 
     if intent == "recommendation":
         return "vector_rag"
