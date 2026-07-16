@@ -9,8 +9,13 @@ from openai import OpenAI
 
 # Import database functions
 from test.database import (
-    get_user_profile, update_user_profile, match_products,
-    search_products_by_keyword, get_market_name, get_markets_map
+    get_user_profile,
+    update_user_profile,
+    match_products,
+    search_products_by_keyword,
+    search_products_for_profile,
+    get_market_name,
+    get_markets_map
 )
 
 # Configure OpenAI API
@@ -299,7 +304,11 @@ def vector_rag_node(state: AgentState):
 
     try:
         # 1. Search products (keyword-based category search first)
-        matched_products = search_products_by_keyword(last_msg, match_count=3)
+        matched_products = search_products_for_profile(
+            user_message=last_msg,
+            profile=profile,
+            match_count=3
+        )
 
         # 2. If keyword search found nothing, try vector search (OpenAI Embeddings)
         if not matched_products:
@@ -330,7 +339,9 @@ def vector_rag_node(state: AgentState):
         profile_summary = (
             f"Cilt Tipi: {profile.get('skin_type', 'N/A')}, "
             f"Saç Tipi: {profile.get('hair_type', 'N/A')}, "
-            f"Cilt Problemleri: {', '.join(profile.get('skin_concerns', [])) or 'yok'}"
+            f"Cilt Problemleri: {', '.join(profile.get('skin_concerns', [])) or 'yok'}, "
+            f"Minimum Bütçe: {profile.get('min_budget', '-')}, "
+            f"Maksimum Bütçe: {profile.get('max_budget', '-')} TL"
         )
 
         # 6. Generate response with strict prompt

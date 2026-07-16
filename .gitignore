@@ -5,4 +5,4 @@ scratch/
 **/__pycache__/
 **/*.pyc
 .gemini/
-
+.idea/
