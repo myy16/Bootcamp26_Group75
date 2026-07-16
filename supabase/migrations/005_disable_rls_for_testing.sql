@@ -1,9 +1,13 @@
--- 1. Disable RLS on onboarding tables for testing purposes
+-- 1. Disable RLS on onboarding and tagging tables for testing purposes
 ALTER TABLE public.skin_types DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.hair_types DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.skin_concerns DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_profiles DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_skin_concerns DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.product_skin_types DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.product_hair_types DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.product_skin_concerns DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.product_tags DISABLE ROW LEVEL SECURITY;
 
 -- 2. Seed data for onboarding tables
 INSERT INTO public.skin_types (name) VALUES 

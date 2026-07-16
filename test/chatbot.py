@@ -12,9 +12,9 @@ from test.database import (
     get_user_profile,
     update_user_profile,
     search_products_by_keyword,
-    search_products_for_profile,
+    search_products_by_profile,
     get_market_name,
-    get_markets_map
+    get_markets_map,
 )
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -399,12 +399,8 @@ def vector_rag_node(state: AgentState):
     last_msg = get_last_user_message(state.messages)
 
     try:
-        # 1. Search products (keyword-based category search first)
-        matched_products = search_products_for_profile(
-            user_message=last_msg,
-            profile=profile,
-            match_count=3
-        )
+        # 1. Search products (profile-based category search first)
+        matched_products = search_products_by_profile(profile, last_msg, match_count=3)
 
         # 2. If keyword search found nothing, try vector search (vector search)
         if not matched_products:

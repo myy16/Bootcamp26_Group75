@@ -13,9 +13,6 @@ SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY")
 
 supabase_client: Client = None
 
-# In-memory mock fallback store for user profiles during testing
-MOCK_USER_PROFILES = {}
-
 # Cached markets map {m_id: market_name}
 MARKETS_MAP = {}
 
@@ -161,8 +158,18 @@ def find_matching_category_ids(user_message: str) -> list:
 def load_onboarding_lookups():
     """Fetches and caches lookup tables for skin types, hair types, and skin concerns."""
     global SKIN_TYPES_LOOKUP, HAIR_TYPES_LOOKUP, SKIN_CONCERNS_LOOKUP
-    if SKIN_TYPES_LOOKUP and HAIR_TYPES_LOOKUP and SKIN_CONCERNS_LOOKUP:
-        return
+    
+    # Initialize with default local fallbacks in case DB is empty or RLS-blocked
+    default_skin = {'normal': 1, 'kuru': 2, 'yağlı': 3, 'karma': 4, 'hassas': 5}
+    default_hair = {'normal': 1, 'kuru': 2, 'yağlı': 3, 'boyalı': 4, 'ince telli': 5, 'kalın telli': 6, 'kıvırcık': 7, 'kepekli': 8}
+    default_concerns = {'akne': 1, 'leke': 2, 'kuruluk': 3, 'siyah nokta': 4, 'kızarıklık': 5, 'yaşlanma karşıtı': 6}
+
+    if not SKIN_TYPES_LOOKUP:
+        SKIN_TYPES_LOOKUP.update(default_skin)
+    if not HAIR_TYPES_LOOKUP:
+        HAIR_TYPES_LOOKUP.update(default_hair)
+    if not SKIN_CONCERNS_LOOKUP:
+        SKIN_CONCERNS_LOOKUP.update(default_concerns)
 
     if not supabase_client:
         return
@@ -170,33 +177,32 @@ def load_onboarding_lookups():
     try:
         # Fetch skin types
         res = supabase_client.table("skin_types").select("id, name").execute()
-        if res.data:
+        if res.data and len(res.data) > 0:
             SKIN_TYPES_LOOKUP = {row["name"].lower(): row["id"] for row in res.data}
             
         # Fetch hair types
         res = supabase_client.table("hair_types").select("id, name").execute()
-        if res.data:
+        if res.data and len(res.data) > 0:
             HAIR_TYPES_LOOKUP = {row["name"].lower(): row["id"] for row in res.data}
 
         # Fetch skin concerns
         res = supabase_client.table("skin_concerns").select("id, name").execute()
-        if res.data:
+        if res.data and len(res.data) > 0:
             SKIN_CONCERNS_LOOKUP = {row["name"].lower(): row["id"] for row in res.data}
     except Exception as e:
-        print(f"Error loading onboarding lookups from DB: {e}")
+        print(f"Error loading onboarding lookups from DB, using fallback: {e}")
 
 
 def get_user_profile(user_id: str):
     """
     Fetches the profile of a user from the 'user_profiles' table with relation joins.
-    Falls back to in-memory store if the user_id is not a valid UUID or DB query fails.
+    Uses Supabase as the source of truth.
     """
     if not is_valid_uuid(user_id):
-        # Graceful fallback to mock store for non-UUID strings
-        return MOCK_USER_PROFILES.get(user_id)
+        raise ValueError(f"Invalid user_id for Supabase profile lookup: {user_id}")
 
     if not supabase_client:
-        return MOCK_USER_PROFILES.get(user_id)
+        raise RuntimeError("Supabase client is not configured.")
         
     try:
         # Query user profile with join on skin_types and hair_types
@@ -228,39 +234,24 @@ def get_user_profile(user_id: str):
                 "max_budget": profile_row.get("max_budget"),
                 "onboarding_completed": profile_row.get("onboarding_completed", False),
             }
-            # Sync to local mock cache
-            MOCK_USER_PROFILES[user_id] = profile
             return profile
-            
+
     except Exception as e:
-        print(f"DB profile fetch failed or RLS blocked (using mock fallback): {e}")
-        
-    return MOCK_USER_PROFILES.get(user_id)
+        print(f"DB profile fetch failed: {e}")
+        raise
 
 
 def update_user_profile(user_id: str, profile_data: dict):
     """
     Inserts or updates the profile of a user in the 'user_profiles' table.
     Gracefully maps skin_type/hair_type strings to foreign key IDs.
-    Falls back to in-memory store if the user_id is not a valid UUID or DB query fails.
+    Uses Supabase as the source of truth.
     """
-    # Save to mock memory first
-    MOCK_USER_PROFILES[user_id] = {
-        "user_id": user_id,
-        "full_name": profile_data.get("full_name") or "User",
-        "skin_type": profile_data.get("skin_type"),
-        "hair_type": profile_data.get("hair_type"),
-        "skin_concerns": profile_data.get("skin_concerns", []),
-        "min_budget": profile_data.get("min_budget"),
-        "max_budget": profile_data.get("max_budget"),
-    }
-
     if not is_valid_uuid(user_id):
-        # Graceful fallback to mock store for non-UUID strings
-        return MOCK_USER_PROFILES[user_id]
+        raise ValueError(f"Invalid user_id for Supabase profile update: {user_id}")
 
     if not supabase_client:
-        return MOCK_USER_PROFILES[user_id]
+        raise RuntimeError("Supabase client is not configured.")
 
     try:
         # Load ID lookups
@@ -313,9 +304,8 @@ def update_user_profile(user_id: str, profile_data: dict):
         return get_user_profile(user_id)
         
     except Exception as e:
-        print(f"Error updating user profile in DB (saved in memory fallback): {e}")
-
-    return MOCK_USER_PROFILES[user_id]
+        print(f"Error updating user profile in DB: {e}")
+        raise
 
 
 def search_products_by_keyword(user_message: str, match_count: int = 3):
@@ -593,3 +583,85 @@ def match_products(query_embedding: list, match_threshold: float = 0.15, match_c
         print(f"RPC match_products failed: {e}. Using keyword search fallback...")
 
     return []
+
+
+def search_products_by_profile(profile: dict, user_message: str, match_count: int = 3) -> list:
+    """
+    Finds products that match the user's skin/hair profile and query category.
+    Falls back to category keyword search if no profile match or table is empty.
+    """
+    if not supabase_client:
+        return search_products_by_keyword(user_message, match_count)
+
+    try:
+        load_onboarding_lookups()
+        
+        # 1. Identify category from user message
+        category_ids = find_matching_category_ids(user_message)
+        if not category_ids:
+            return []
+
+        # 2. Get profile IDs
+        skin_type_str = (profile.get("skin_type") or "").lower()
+        hair_type_str = (profile.get("hair_type") or "").lower()
+        skin_concerns_list = [c.lower() for c in profile.get("skin_concerns", [])]
+
+        skin_type_id = SKIN_TYPES_LOOKUP.get(skin_type_str)
+        hair_type_id = HAIR_TYPES_LOOKUP.get(hair_type_str)
+
+        matched_p_ids = set()
+
+        # 3. Filter products matching skin type
+        if skin_type_id:
+            res = supabase_client.table("product_skin_types").select("product_id").eq("skin_type_id", skin_type_id).execute()
+            if res.data:
+                matched_p_ids.update(row["product_id"] for row in res.data)
+
+        # 4. Filter products matching hair type (if hair product category)
+        if hair_type_id:
+            res = supabase_client.table("product_hair_types").select("product_id").eq("hair_type_id", hair_type_id).execute()
+            if res.data:
+                # If we already have skin matching products, intersect; otherwise add
+                ht_pids = set(row["product_id"] for row in res.data)
+                if matched_p_ids:
+                    # Only intersect if we are searching hair care category
+                    # categories 34, 35, 36 are hair categories in synonym map
+                    is_hair_query = any(cid in [34, 35, 36] for cid in category_ids)
+                    if is_hair_query:
+                        matched_p_ids.intersection_update(ht_pids)
+                else:
+                    matched_p_ids.update(ht_pids)
+
+        # 5. Fetch products from DB
+        query = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").in_("category_id", category_ids)
+        
+        if matched_p_ids:
+            query = query.in_("id", list(matched_p_ids))
+            
+        products_response = query.limit(match_count).execute()
+
+        # If no profile-matched products found, fallback to pure category search
+        if not products_response.data or len(products_response.data) == 0:
+            return search_products_by_keyword(user_message, match_count)
+
+        markets = get_markets_map()
+        result = []
+
+        for product in products_response.data:
+            store_response = supabase_client.table("store_mappings").select("*").eq("p_id", product["id"]).execute()
+            stores = store_response.data if store_response.data else []
+
+            for store in stores:
+                store["market_name"] = markets.get(store.get("m_id"), f"Mağaza #{store.get('m_id')}")
+            stores.sort(key=lambda s: s.get("current_price") or 99999)
+
+            product["store_mappings"] = stores
+            product["category_name"] = CATEGORIES_MAP.get(product.get("category_id"), "Bilinmiyor")
+            result.append(product)
+
+        return result
+
+    except Exception as e:
+        print(f"Profile-based product search failed: {e}. Falling back to category search...")
+        return search_products_by_keyword(user_message, match_count)
+

@@ -5,4 +5,6 @@ scratch/
 **/__pycache__/
 **/*.pyc
 .gemini/
+node_modules
+chat_doc.md
 .idea/

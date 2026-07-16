@@ -5,6 +5,7 @@ import { HomePage } from "./components/HomePage";
 import { ChatPage } from "./components/ChatPage";
 import { CartOptimizer } from "./components/CartOptimizer";
 import { FavoritesPage } from "./components/FavoritesPage";
+import { ProfilePage } from "./components/ProfilePage";
 import { Product, StoreName } from "./data";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
@@ -269,6 +270,7 @@ export default function App() {
             onAddToCart={handleAddToCart}
             cartItemIds={cartItemIds}
             onNavigateToCart={() => setActiveTab("cart")}
+            user={user}
           />
         )}
         {!loading && activeTab === "cart" && (
@@ -286,6 +288,19 @@ export default function App() {
               setAuthModalTab("login");
               setIsAuthModalOpen(true);
             }}
+          />
+        )}
+        {!loading && activeTab === "profile" && (
+          <ProfilePage
+            user={user}
+            onOpenLogin={() => {
+              setAuthModalTab("login");
+              setIsAuthModalOpen(true);
+            }}
+            onSignOut={handleSignOut}
+            favoriteCount={favoriteIds.size}
+            cartCount={cartItems.length}
+            productCount={products.length}
           />
         )}
       </main>
