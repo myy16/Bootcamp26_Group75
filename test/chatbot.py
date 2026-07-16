@@ -10,7 +10,8 @@ from openai import OpenAI
 # Import database functions
 from test.database import (
     get_user_profile, update_user_profile, match_products,
-    search_products_by_keyword, get_market_name, get_markets_map
+    search_products_by_keyword, get_market_name, get_markets_map,
+    search_products_by_profile
 )
 
 # Configure OpenAI API
@@ -298,8 +299,8 @@ def vector_rag_node(state: AgentState):
     last_msg = get_last_user_message(state.messages)
 
     try:
-        # 1. Search products (keyword-based category search first)
-        matched_products = search_products_by_keyword(last_msg, match_count=3)
+        # 1. Search products (profile-based category search first)
+        matched_products = search_products_by_profile(profile, last_msg, match_count=3)
 
         # 2. If keyword search found nothing, try vector search (OpenAI Embeddings)
         if not matched_products:
