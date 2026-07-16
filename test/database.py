@@ -10,6 +10,7 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY")
+SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY")
 
 supabase_client: Client = None
 
@@ -27,14 +28,17 @@ SKIN_TYPES_LOOKUP = {}  # {name_lower: id}
 HAIR_TYPES_LOOKUP = {}  # {name_lower: id}
 SKIN_CONCERNS_LOOKUP = {}  # {name_lower: id}
 
-if SUPABASE_URL and SUPABASE_ANON_KEY:
+if SUPABASE_URL and SUPABASE_SECRET_KEY:
     try:
-        supabase_client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-        print("Supabase client successfully initialized.")
+        supabase_client = create_client(
+            SUPABASE_URL,
+            SUPABASE_SECRET_KEY
+        )
+        print("Supabase backend client successfully initialized.")
     except Exception as e:
         print(f"Error initializing Supabase client: {e}")
 else:
-    print("Warning: SUPABASE_URL or SUPABASE_ANON_KEY not found. Database connection inactive.")
+    print("Warning: SUPABASE_URL or SUPABASE_SECRET_KEY not found.")
 
 
 def is_valid_uuid(val: str) -> bool:

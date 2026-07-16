@@ -392,78 +392,86 @@ def general_chat_node(state: AgentState):
 
 def vector_rag_node(state: AgentState):
     """
-    RAG node: searches products, formats context, generates recommendation.
-    Uses category-aware keyword search as primary, vector search as secondary.
+    RAG node:
+    - Önce kullanıcı profiline ve mesajına göre ürün arar.
+    - Sonuç yoksa mesaj anahtar kelimeleriyle arama yapar.
+    - Hâlâ sonuç yoksa genel cilt bakım ürünlerine geçer.
+    - Bulunan ürünleri Groq ile kısa ve güvenli bir öneri metnine dönüştürür.
     """
     profile = state.profile_context
     last_msg = get_last_user_message(state.messages)
 
     try:
-        # 1. Search products (profile-based category search first)
-        matched_products = search_products_by_profile(profile, last_msg, match_count=3)
+        # 1. Önce kullanıcı profiline göre ürün ara.
+        matched_products = search_products_by_profile(
+            profile,
+            last_msg,
+            match_count=3,
+        )
 
-        # 2. If keyword search found nothing, try vector search (vector search)
+        # 2. Profil tabanlı arama sonuç vermediyse mesajdan anahtar kelime ara.
         if not matched_products:
-            try:
-                profile_summary = f"Cilt: {profile.get('skin_type')}, Saç: {profile.get('hair_type')}"
-                search_query = f"{last_msg}. {profile_summary}"
+            matched_products = search_products_by_keyword(
+                last_msg,
+                match_count=3,
+            )
 
-                def make_emb():
-                    return client.embeddings.create(
-                        model="text-embedding-3-small",
-                        input=search_query
-                    )
-
-                emb_res = retry_groq_call(make_emb)
-                query_embedding = emb_res.data[0].embedding
-                matched_products = match_products(query_embedding, match_count=3)
-            except Exception as emb_err:
-                print(f"Vector search also failed: {emb_err}")
-
-        # 3. If still nothing, try a broader keyword search
+        # 3. Hâlâ sonuç bulunamadıysa genel cilt bakım ürünlerini getir.
         if not matched_products:
-            matched_products = search_products_by_keyword("cilt bakım", match_count=3)
+            matched_products = search_products_by_keyword(
+                "cilt bakım",
+                match_count=3,
+            )
 
-        # 4. Format product context
+        # 4. Ürünleri model için bağlam metnine dönüştür.
         product_context = format_product_context(matched_products)
 
-        # 5. Build profile summary
+        # 5. Kullanıcı profilini özetle.
         profile_summary = (
             f"Cilt Tipi: {profile.get('skin_type', 'N/A')}, "
             f"Saç Tipi: {profile.get('hair_type', 'N/A')}, "
-            f"Cilt Problemleri: {', '.join(profile.get('skin_concerns', [])) or 'yok'}, "
+            f"Cilt Problemleri: "
+            f"{', '.join(profile.get('skin_concerns', [])) or 'yok'}, "
             f"Minimum Bütçe: {profile.get('min_budget', '-')}, "
             f"Maksimum Bütçe: {profile.get('max_budget', '-')} TL"
         )
 
-        # 6. Generate response with strict prompt
+        # 6. Groq için güvenli ve sınırlı sistem talimatı oluştur.
         system_prompt = (
-            "Sen Beautrics kozmetik danışmanısın. Kullanıcının profiline uygun ürün önerisi yap.\n\n"
+            "Sen Beautrics kozmetik danışmanısın. "
+            "Kullanıcının profiline uygun ürün önerisi yap.\n\n"
             "KATI KURALLAR:\n"
-            "1. SADECE aşağıdaki ürün listesindeki ürünleri öner. Listeye olmayan ürün ekleme.\n"
+            "1. SADECE aşağıdaki ürün listesindeki ürünleri öner. "
+            "Listede olmayan ürün ekleme.\n"
             "2. Maksimum 3 ürün öner.\n"
-            "3. Her ürün için: isim, mağaza adı, fiyat ve satın alma linkini yaz.\n"
+            "3. Her ürün için isim, mağaza, fiyat ve satın alma linkini yaz.\n"
             "4. En ucuz seçeneği belirt.\n"
-            "5. Fiyatı 0 TL olan ürünler stokta olmayabilir, bunu belirt.\n"
+            "5. Fiyatı 0 TL olan ürünler stokta olmayabilir; bunu belirt.\n"
             "6. Emoji kullanma.\n"
-            "7. Kısa ve net cevaplar ver (en fazla 200 kelime).\n"
-            "8. Ürünler hakkında uydurma bilgi verme, sadece isimleri ve fiyatları kullan.\n"
+            "7. Kısa ve net cevap ver; en fazla 200 kelime kullan.\n"
+            "8. Ürünler hakkında uydurma bilgi verme.\n"
             "9. Satın alma linklerini [Satın Al](url) formatında ekle.\n\n"
             f"KULLANICI PROFİLİ:\n{profile_summary}\n\n"
             f"ÜRÜN LİSTESİ:\n{product_context}"
         )
 
         messages_payload = [{"role": "system", "content": system_prompt}]
+
         for msg in state.messages:
             role = "user" if msg.get("role") == "user" else "assistant"
-            messages_payload.append({"role": role, "content": msg.get("content")})
+            messages_payload.append(
+                {
+                    "role": role,
+                    "content": msg.get("content", ""),
+                }
+            )
 
         def make_call():
             return client.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=messages_payload,
                 max_tokens=400,
-                temperature=0.7
+                temperature=0.7,
             )
 
         chat_response = retry_groq_call(make_call)
@@ -471,22 +479,41 @@ def vector_rag_node(state: AgentState):
         content = chat_response.choices[0].message.content or ""
         content = content.strip()
 
+        # Model boş yanıt verirse ürünlerden doğrudan güvenli yanıt üret.
         if not content:
             print("Groq returned empty content. Using product fallback.")
             content = build_product_response(matched_products)
 
         new_messages = state.messages.copy()
-        new_messages.append({"role": "assistant", "content": content})
+        new_messages.append(
+            {
+                "role": "assistant",
+                "content": content,
+            }
+        )
 
         return {
             "messages": new_messages,
             "retrieved_products": matched_products,
         }
+
     except Exception as e:
         print(f"Error in vector_rag_node: {e}")
+
+        fallback_content = build_product_response([])
+
         new_messages = state.messages.copy()
-        new_messages.append({"role": "assistant", "content": "Ürün önerisi getirilirken bir sorun oluştu."})
-        return {"messages": new_messages}
+        new_messages.append(
+            {
+                "role": "assistant",
+                "content": fallback_content,
+            }
+        )
+
+        return {
+            "messages": new_messages,
+            "retrieved_products": [],
+        }
 
 
 # === Build LangGraph Workflow ===
