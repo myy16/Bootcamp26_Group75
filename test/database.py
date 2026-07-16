@@ -227,13 +227,16 @@ def get_user_profile(user_id: str):
             # Map DB fields to application schema
             skin_type_name = profile_row.get("skin_types", {}).get("name") if profile_row.get("skin_types") else None
             hair_type_name = profile_row.get("hair_types", {}).get("name") if profile_row.get("hair_types") else None
-            
+
             profile = {
                 "user_id": user_id,
                 "full_name": profile_row.get("full_name") or "User",
                 "skin_type": skin_type_name.lower() if skin_type_name else None,
                 "hair_type": hair_type_name.lower() if hair_type_name else None,
-                "skin_concerns": concerns
+                "skin_concerns": concerns,
+                "min_budget": profile_row.get("min_budget"),
+                "max_budget": profile_row.get("max_budget"),
+                "onboarding_completed": profile_row.get("onboarding_completed", False),
             }
             # Sync to local mock cache
             MOCK_USER_PROFILES[user_id] = profile
@@ -258,6 +261,8 @@ def update_user_profile(user_id: str, profile_data: dict):
         "skin_type": profile_data.get("skin_type"),
         "hair_type": profile_data.get("hair_type"),
         "skin_concerns": profile_data.get("skin_concerns", []),
+        "min_budget": profile_data.get("min_budget"),
+        "max_budget": profile_data.get("max_budget"),
     }
 
     if not is_valid_uuid(user_id):
@@ -283,7 +288,9 @@ def update_user_profile(user_id: str, profile_data: dict):
             "user_id": user_id,
             "skin_type_id": skin_type_id,
             "hair_type_id": hair_type_id,
-            "onboarding_completed": True if skin_type_id and hair_type_id else False
+            "min_budget": profile_data.get("min_budget"),
+            "max_budget": profile_data.get("max_budget"),
+            "onboarding_completed": True if skin_type_id and hair_type_id else False,
         }
 
         # Check if profile already exists in DB
@@ -376,7 +383,195 @@ def search_products_by_keyword(user_message: str, match_count: int = 3):
     except Exception as e:
         print(f"Keyword-based product search failed: {e}")
         return []
+def search_products_for_profile(
+    user_message: str,
+    profile: dict,
+    match_count: int = 3
+):
+    """
+    Kullanıcının mesajı ve profil bilgilerine göre ürünleri puanlayarak getirir.
 
+    Eşleşme puanları:
+    - Cilt tipi eşleşmesi: +3
+    - Her cilt problemi eşleşmesi: +2
+    - Saç tipi eşleşmesi: +2
+
+    Kullanıcının bütçe aralığı varsa ürünün en düşük mağaza fiyatı
+    bu aralığa göre filtrelenir.
+    """
+
+    if not supabase_client:
+        return []
+
+    try:
+        load_onboarding_lookups()
+        get_categories_map()
+
+        category_ids = find_matching_category_ids(user_message)
+
+        product_query = (
+            supabase_client
+            .table("products")
+            .select(
+                "id, brand_id, category_id, universal_name, image_url"
+            )
+        )
+
+        if category_ids:
+            product_query = product_query.in_(
+                "category_id",
+                category_ids
+            )
+
+        product_response = product_query.limit(100).execute()
+        products = product_response.data or []
+
+        if not products:
+            return []
+
+        skin_type = (profile.get("skin_type") or "").lower()
+        hair_type = (profile.get("hair_type") or "").lower()
+        skin_concerns = profile.get("skin_concerns", [])
+
+        skin_type_id = SKIN_TYPES_LOOKUP.get(skin_type)
+        hair_type_id = HAIR_TYPES_LOOKUP.get(hair_type)
+
+        skin_concern_ids = []
+
+        for concern in skin_concerns:
+            concern_id = SKIN_CONCERNS_LOOKUP.get(
+                str(concern).lower()
+            )
+
+            if concern_id:
+                skin_concern_ids.append(concern_id)
+
+        min_budget = profile.get("min_budget")
+        max_budget = profile.get("max_budget")
+
+        markets = get_markets_map()
+        results = []
+
+        for product in products:
+            product_id = product["id"]
+            match_score = 0
+
+            # Cilt tipi eşleşmesi
+            if skin_type_id:
+                skin_type_response = (
+                    supabase_client
+                    .table("product_skin_types")
+                    .select("product_id")
+                    .eq("product_id", product_id)
+                    .eq("skin_type_id", skin_type_id)
+                    .execute()
+                )
+
+                if skin_type_response.data:
+                    match_score += 3
+
+            # Cilt problemleri eşleşmesi
+            if skin_concern_ids:
+                concern_response = (
+                    supabase_client
+                    .table("product_skin_concerns")
+                    .select("skin_concern_id")
+                    .eq("product_id", product_id)
+                    .in_("skin_concern_id", skin_concern_ids)
+                    .execute()
+                )
+
+                match_score += len(concern_response.data or []) * 2
+
+            # Saç tipi eşleşmesi
+            if hair_type_id:
+                hair_type_response = (
+                    supabase_client
+                    .table("product_hair_types")
+                    .select("product_id")
+                    .eq("product_id", product_id)
+                    .eq("hair_type_id", hair_type_id)
+                    .execute()
+                )
+
+                if hair_type_response.data:
+                    match_score += 2
+
+            # Mağaza ve fiyat bilgileri
+            store_response = (
+                supabase_client
+                .table("store_mappings")
+                .select("*")
+                .eq("p_id", product_id)
+                .execute()
+            )
+
+            stores = store_response.data or []
+
+            for store in stores:
+                store["market_name"] = markets.get(
+                    store.get("m_id"),
+                    f"Mağaza #{store.get('m_id')}"
+                )
+
+            stores.sort(
+                key=lambda store: (
+                    store.get("current_price")
+                    if store.get("current_price") is not None
+                    else 999999
+                )
+            )
+
+            valid_prices = [
+                float(store["current_price"])
+                for store in stores
+                if store.get("current_price") is not None
+                and float(store["current_price"]) > 0
+            ]
+
+            lowest_price = min(valid_prices) if valid_prices else None
+
+            # Bütçe kontrolü
+            if lowest_price is not None:
+                if (
+                    min_budget is not None
+                    and lowest_price < float(min_budget)
+                ):
+                    continue
+
+                if (
+                    max_budget is not None
+                    and lowest_price > float(max_budget)
+                ):
+                    continue
+
+            product["store_mappings"] = stores
+            product["category_name"] = CATEGORIES_MAP.get(
+                product.get("category_id"),
+                "Bilinmiyor"
+            )
+            product["match_score"] = match_score
+            product["lowest_price"] = lowest_price
+
+            results.append(product)
+
+        # Önce eşleşme puanı yüksek, sonra fiyatı düşük olanlar
+        results.sort(
+            key=lambda product: (
+                -product.get("match_score", 0),
+                (
+                    product.get("lowest_price")
+                    if product.get("lowest_price") is not None
+                    else 999999
+                )
+            )
+        )
+
+        return results[:match_count]
+
+    except Exception as e:
+        print(f"Profile-based product search failed: {e}")
+        return []
 
 def match_products(query_embedding: list, match_threshold: float = 0.15, match_count: int = 3):
     if not supabase_client:

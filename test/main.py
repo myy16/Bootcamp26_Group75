@@ -44,7 +44,8 @@ class ProfileUpdateRequest(BaseModel):
     skin_type: Optional[str] = Field(None, description="kuru, yağlı, karma, normal")
     hair_type: Optional[str] = Field(None, description="kuru, yağlı, karma, normal")
     skin_concerns: Optional[List[str]] = Field(default_factory=list, description="e.g. ['akne', 'leke']")
-
+    min_budget: Optional[float] = Field(None, ge=0)
+    max_budget: Optional[float] = Field(None, ge=0)
 @app.get("/")
 def read_root():
     return {
@@ -123,7 +124,9 @@ def update_profile(user_id: str, profile: ProfileUpdateRequest):
         "full_name": profile.full_name,
         "skin_type": profile.skin_type,
         "hair_type": profile.hair_type,
-        "skin_concerns": profile.skin_concerns
+        "skin_concerns": profile.skin_concerns,
+        "min_budget": profile.min_budget,
+        "max_budget": profile.max_budget,
     }
     result = update_user_profile(user_id, profile_data)
     if not result:

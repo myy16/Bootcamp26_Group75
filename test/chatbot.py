@@ -9,9 +9,13 @@ from openai import OpenAI
 
 # Import database functions
 from test.database import (
-    get_user_profile, update_user_profile, match_products,
-    search_products_by_keyword, get_market_name, get_markets_map,
-    search_products_by_profile
+    get_user_profile,
+    update_user_profile,
+    match_products,
+    search_products_by_keyword,
+    search_products_by_profile,
+    get_market_name,
+    get_markets_map,
 )
 
 # Configure OpenAI API
@@ -331,7 +335,9 @@ def vector_rag_node(state: AgentState):
         profile_summary = (
             f"Cilt Tipi: {profile.get('skin_type', 'N/A')}, "
             f"Saç Tipi: {profile.get('hair_type', 'N/A')}, "
-            f"Cilt Problemleri: {', '.join(profile.get('skin_concerns', [])) or 'yok'}"
+            f"Cilt Problemleri: {', '.join(profile.get('skin_concerns', [])) or 'yok'}, "
+            f"Minimum Bütçe: {profile.get('min_budget', '-')}, "
+            f"Maksimum Bütçe: {profile.get('max_budget', '-')} TL"
         )
 
         # 6. Generate response with strict prompt
