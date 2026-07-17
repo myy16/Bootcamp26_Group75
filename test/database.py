@@ -599,9 +599,15 @@ def search_products_by_profile(profile: dict, user_message: str, match_count: in
 
     try:
         load_onboarding_lookups()
-        
+
         # 1. Identify category from user message
         category_ids = find_matching_category_ids(user_message)
+        print("DEBUG category_ids:", category_ids)
+        print("=" * 60)
+        print("User message:", user_message)
+        print("Matched category ids:", category_ids)
+        print("=" * 60)
+
         if not category_ids:
             return []
 
@@ -643,6 +649,20 @@ def search_products_by_profile(profile: dict, user_message: str, match_count: in
             query = query.in_("id", list(matched_p_ids))
             
         products_response = query.limit(match_count).execute()
+        print("=" * 60)
+        print("User message:", user_message)
+        print("Matched category ids:", category_ids)
+        print("Returned products:")
+
+        for product in products_response.data or []:
+            print(
+                product.get("universal_name"),
+                "| category_id:",
+                product.get("category_id")
+            )
+
+        print("=" * 60)
+
 
         # If no profile-matched products found, fallback to pure category search
         if not products_response.data or len(products_response.data) == 0:

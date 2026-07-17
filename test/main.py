@@ -3,6 +3,7 @@ from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Body
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 
 # Import chatbot and database modules
 from test.chatbot import chatbot_app
@@ -16,7 +17,16 @@ app = FastAPI(
     description="FastAPI backend for testing Beautrics LangGraph Chatbot and Supabase RAG system.",
     version="1.0.0"
 )
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # In-memory session store for chat history (for easy testing in Swagger UI)
 SESSIONS: Dict[str, List[Dict[str, Any]]] = {}
 
