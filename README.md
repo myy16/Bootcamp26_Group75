@@ -149,6 +149,12 @@ Sprint board üzerinde user story’lerin sprint boyunca geçirdiği durum deği
 <img width="1733" height="829" alt="3" src="https://github.com/user-attachments/assets/3eba0bbf-50ed-413d-b80d-ed5ba6841e68" />
 <img width="1709" height="815" alt="4" src="https://github.com/user-attachments/assets/c9923f48-f0c9-43ce-8d3c-e0919956ddcb" />
 <img width="1713" height="832" alt="5" src="https://github.com/user-attachments/assets/a242bfb2-4246-4532-9d19-2f410b6c3c03" />
+<img width="1714" height="830" alt="image" src="https://github.com/user-attachments/assets/9da01540-832c-4a08-9ef5-fb844643d02c" />
+<img width="1708" height="827" alt="image" src="https://github.com/user-attachments/assets/0aa90a2b-6664-425a-b9f7-9c54d21608f0" />
+<img width="1698" height="826" alt="image" src="https://github.com/user-attachments/assets/3a2fd05d-6a59-4b61-91b6-3cb41d4fe1cc" />
+
+
+
 
 
 
