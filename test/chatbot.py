@@ -15,6 +15,7 @@ from test.database import (
     search_products_by_profile,
     get_market_name,
     get_markets_map,
+    match_products,
 )
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -402,21 +403,39 @@ def vector_rag_node(state: AgentState):
     last_msg = get_last_user_message(state.messages)
 
     try:
-        # 1. Önce kullanıcı profiline göre ürün ara.
-        matched_products = search_products_by_profile(
-            profile,
-            last_msg,
-            match_count=3,
-        )
+        matched_products = []
 
-        # 2. Profil tabanlı arama sonuç vermediyse mesajdan anahtar kelime ara.
+        # 1. Try vector similarity search (OpenAI Embeddings) first
+        try:
+            profile_summary = f"Cilt Tipi: {profile.get('skin_type', 'normal')}, Saç Tipi: {profile.get('hair_type', 'normal')}"
+            search_query = f"{last_msg}. {profile_summary}"
+
+            # We use OpenAI's official text-embedding-3-small via openai client
+            emb_res = client.embeddings.create(
+                model="text-embedding-3-small",
+                input=search_query
+            )
+            query_embedding = emb_res.data[0].embedding
+            matched_products = match_products(query_embedding, match_count=3)
+        except Exception as emb_err:
+            print(f"Vector search failed or not configured (setup RPC/embeddings first): {emb_err}")
+
+        # 2. Fallback to profile-based category search
+        if not matched_products:
+            matched_products = search_products_by_profile(
+                profile,
+                last_msg,
+                match_count=3,
+            )
+
+        # 3. Fallback to keyword search
         if not matched_products:
             matched_products = search_products_by_keyword(
                 last_msg,
                 match_count=3,
             )
 
-        # 3. Hâlâ sonuç bulunamadıysa genel cilt bakım ürünlerini getir.
+        # 4. Fallback to general skincare products
         if not matched_products:
             matched_products = search_products_by_keyword(
                 "cilt bakım",

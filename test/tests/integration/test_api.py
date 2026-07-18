@@ -7,7 +7,6 @@ import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 base_url = "http://127.0.0.1:8000"
-# Use a valid UUID format to avoid Postgres syntax issues during DB check
 user_id = "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
 session_id = "session-v2"
 
@@ -42,8 +41,8 @@ print(f"Yanıt:\n{result['response']}")
 print(f"Eksik Alanlar: {result['missing_fields']}")
 print(f"Profil: {result['profile']}")
 
-# Step 3: Ask for recommendations - should use category matching
-print("\n--- ADIM 3: Nemlendirici önerisi (kategori bazlı arama) ---")
+# Step 3: Ask for recommendations - should use category/vector matching
+print("\n--- ADIM 3: Nemlendirici önerisi (semantik arama) ---")
 result = send_chat("Bana nemlendirici önerir misin?")
 print(f"Yanıt:\n{result['response']}")
 print(f"Eksik Alanlar: {result['missing_fields']}")
