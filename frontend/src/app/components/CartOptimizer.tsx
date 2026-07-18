@@ -27,12 +27,33 @@ export function CartOptimizer({ items, onRemoveItem }: CartOptimizerProps) {
 
   const storeTotals = getStoreTotals(items);
   const { total: splitTotal, breakdown } = getCheapestTotal(items);
-  const cheapestSingleStore = STORE_ORDER.reduce<{ name: StoreName; total: number }>(
-    (best, s) => (storeTotals[s] < best.total ? { name: s, total: storeTotals[s] } : best),
-    { name: STORE_ORDER[0], total: storeTotals[STORE_ORDER[0]] }
+
+  // Only a store that sells EVERY item in the cart can be a "single store" candidate.
+  // Otherwise storeTotals[s] falls back to 0 for stores missing some items, which
+  // incorrectly makes them look like the cheapest option.
+  const eligibleStores = STORE_ORDER.filter((s) =>
+    items.every((p) => p.stores.some((st) => st.name === s))
   );
-  const savings = cheapestSingleStore.total - splitTotal;
-  const maxTotal = Math.max(...STORE_ORDER.map((s) => storeTotals[s]));
+
+  const cheapestSingleStore: { name: StoreName; total: number } | null =
+    eligibleStores.length > 0
+      ? eligibleStores.reduce<{ name: StoreName; total: number }>(
+          (best, s) => (storeTotals[s] < best.total ? { name: s, total: storeTotals[s] } : best),
+          { name: eligibleStores[0], total: storeTotals[eligibleStores[0]] }
+        )
+      : null;
+
+  const savings = cheapestSingleStore
+  ? Math.round(Math.max(0, cheapestSingleStore.total - splitTotal) * 100) / 100
+  : 0;
+
+  // For the top summary bar, only consider eligible stores' totals for the bar scale,
+  // falling back to splitTotal if no store is eligible, so bars don't look broken.
+  const maxTotal = Math.max(
+    ...STORE_ORDER.map((s) => (eligibleStores.includes(s) ? storeTotals[s] : 0)),
+    splitTotal,
+    1
+  );
 
   return (
     <div style={{ minHeight: '100vh', background: '#F5F5F0', fontFamily: 'Inter, sans-serif' }}>
@@ -56,10 +77,11 @@ export function CartOptimizer({ items, onRemoveItem }: CartOptimizerProps) {
       <div style={{ background: '#FFFFFF', borderBottom: '1px solid #E8E8E2', padding: '0 32px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
           {STORE_ORDER.map((store) => {
+            const isEligible = eligibleStores.includes(store);
             const total = storeTotals[store];
-            const isBest = store === cheapestSingleStore.name;
+            const isBest = cheapestSingleStore !== null && store === cheapestSingleStore.name;
             const storeColor = STORE_COLORS[store];
-            const barPct = (total / maxTotal) * 100;
+            const barPct = isEligible ? (total / maxTotal) * 100 : 0;
             return (
               <div
                 key={store}
@@ -94,13 +116,13 @@ export function CartOptimizer({ items, onRemoveItem }: CartOptimizerProps) {
                   )}
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: isBest ? storeColor.color : '#1A1A1A', letterSpacing: '-0.5px', marginBottom: 6 }}>
-                  ₺{total}
+                  {isEligible ? `₺${total}` : 'Stok yok'}
                 </div>
                 {/* Bar */}
                 <div style={{ height: 4, borderRadius: 2, background: '#EEEEE8', overflow: 'hidden' }}>
                   <div
                     style={{
-                      height: '100%', width: `${100 - barPct + 30}%`, maxWidth: '100%', borderRadius: 2,
+                      height: '100%', width: isEligible ? `${100 - barPct + 30}%` : '0%', maxWidth: '100%', borderRadius: 2,
                       background: isBest ? storeColor.color : '#DDDDD8',
                     }}
                   />
@@ -179,45 +201,54 @@ export function CartOptimizer({ items, onRemoveItem }: CartOptimizerProps) {
           </div>
 
           {/* Option A: Single store */}
-          <div
-            onClick={() => setActiveOption('single')}
-            style={{
-              background: '#FFFFFF', borderRadius: 12,
-              border: activeOption === 'single' ? '2px solid #2D6A4F' : '1.5px solid #E8E8E2',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-              overflow: 'hidden', cursor: 'pointer',
-              transition: 'border-color 0.15s ease',
-            }}
-          >
-            <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #F0F0EC' }}>
-              <ShoppingBag size={16} style={{ color: '#666' }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#1A1A1A' }}>Tek Kargo</div>
-                <div style={{ fontSize: 12, color: '#666' }}>Tüm ürünleri {cheapestSingleStore.name}'ten al</div>
+          {cheapestSingleStore ? (
+            <div
+              onClick={() => setActiveOption('single')}
+              style={{
+                background: '#FFFFFF', borderRadius: 12,
+                border: activeOption === 'single' ? '2px solid #2D6A4F' : '1.5px solid #E8E8E2',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                overflow: 'hidden', cursor: 'pointer',
+                transition: 'border-color 0.15s ease',
+              }}
+            >
+              <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #F0F0EC' }}>
+                <ShoppingBag size={16} style={{ color: '#666' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#1A1A1A' }}>Tek Kargo</div>
+                  <div style={{ fontSize: 12, color: '#666' }}>Tüm ürünleri {cheapestSingleStore.name}'ten al</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#1A1A1A' }}>₺{cheapestSingleStore.total}</div>
+                  <div style={{ fontSize: 11, color: '#999' }}>+ kargo ücreti</div>
+                </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#1A1A1A' }}>₺{cheapestSingleStore.total}</div>
-                <div style={{ fontSize: 11, color: '#999' }}>+ kargo ücreti</div>
+              {/* Per-item breakdown */}
+              <div style={{ padding: '10px 18px' }}>
+                {items.map((p) => {
+                  const storePrice = p.stores.find((s) => s.name === cheapestSingleStore.name)!;
+                  return (
+                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12, color: '#666', borderBottom: '1px dashed #F0F0EC' }}>
+                      <span>{p.brand} {p.title.split(' ')[0]}</span>
+                      <span style={{ fontWeight: 500, color: '#1A1A1A' }}>₺{storePrice?.price || 0}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ padding: '10px 18px', textAlign: 'right' }}>
+                <button style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 8, border: 'none', background: '#2D6A4F', color: '#FFFFFF', cursor: 'pointer', fontSize: 13, fontWeight: 600, marginLeft: 'auto' }}>
+                  <ExternalLink size={13} /> {cheapestSingleStore.name}'e Git
+                </button>
               </div>
             </div>
-            {/* Per-item breakdown */}
-            <div style={{ padding: '10px 18px' }}>
-              {items.map((p) => {
-                const storePrice = p.stores.find((s) => s.name === cheapestSingleStore.name)!;
-                return (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12, color: '#666', borderBottom: '1px dashed #F0F0EC' }}>
-                    <span>{p.brand} {p.title.split(' ')[0]}</span>
-                    <span style={{ fontWeight: 500, color: '#1A1A1A' }}>₺{storePrice?.price || 0}</span>
-                  </div>
-                );
-              })}
+          ) : (
+            <div style={{ background: '#FFFFFF', borderRadius: 12, border: '1.5px solid #E8E8E2', boxShadow: '0 4px 16px rgba(0,0,0,0.06)', padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <ShoppingBag size={16} style={{ color: '#999' }} />
+              <div style={{ fontSize: 13, color: '#666' }}>
+                Sepetteki tüm ürünleri satan tek bir mağaza yok. En iyi seçenek: <strong>Akıllı Bölme</strong>.
+              </div>
             </div>
-            <div style={{ padding: '10px 18px', textAlign: 'right' }}>
-              <button style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 8, border: 'none', background: '#2D6A4F', color: '#FFFFFF', cursor: 'pointer', fontSize: 13, fontWeight: 600, marginLeft: 'auto' }}>
-                <ExternalLink size={13} /> {cheapestSingleStore.name}'e Git
-              </button>
-            </div>
-          </div>
+          )}
 
           {/* Option B: Maximum savings */}
           <div
@@ -251,7 +282,9 @@ export function CartOptimizer({ items, onRemoveItem }: CartOptimizerProps) {
               </div>
               <div style={{ textAlign: 'right', paddingRight: 80 }}>
                 <div style={{ fontSize: 20, fontWeight: 700, color: '#1B4332' }}>₺{splitTotal}</div>
-                <div style={{ fontSize: 11, color: '#52B788', fontWeight: 600 }}>₺{savings} tasarruf!</div>
+                <div style={{ fontSize: 11, color: '#52B788', fontWeight: 600 }}>
+                  {savings > 0 ? `₺${savings} tasarruf!` : 'En uygun fiyat'}
+                </div>
               </div>
             </div>
 
