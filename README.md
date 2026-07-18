@@ -152,6 +152,10 @@ Sprint board üzerinde user story’lerin sprint boyunca geçirdiği durum deği
 <img width="1714" height="830" alt="image" src="https://github.com/user-attachments/assets/9da01540-832c-4a08-9ef5-fb844643d02c" />
 <img width="1708" height="827" alt="image" src="https://github.com/user-attachments/assets/0aa90a2b-6664-425a-b9f7-9c54d21608f0" />
 <img width="1698" height="826" alt="image" src="https://github.com/user-attachments/assets/3a2fd05d-6a59-4b61-91b6-3cb41d4fe1cc" />
+<img width="1697" height="817" alt="image" src="https://github.com/user-attachments/assets/8fcd0a4a-320c-4a07-9220-81a46a5cc81d" />
+<img width="1690" height="805" alt="image" src="https://github.com/user-attachments/assets/97ce5e83-7edf-41c4-a97c-16d8628ae67d" />
+<img width="1698" height="817" alt="image" src="https://github.com/user-attachments/assets/77e377c4-9d12-4419-a72b-ba31f0da9e26" />
+
 
 
 
@@ -161,6 +165,13 @@ Sprint board üzerinde user story’lerin sprint boyunca geçirdiği durum deği
 - **Ürün Durumu**:
   
 Ekran görüntüleri:
+<img width="1887" height="913" alt="image" src="https://github.com/user-attachments/assets/2cc9db25-6e68-48da-9f6c-fb4fa52ded8d" />
+<img width="1872" height="920" alt="image" src="https://github.com/user-attachments/assets/abac31a8-ee5f-4758-95d6-2817ea6ae7a0" />
+<img width="1886" height="917" alt="image" src="https://github.com/user-attachments/assets/8ba2d5f3-4ad4-417c-90b7-0e0c014ce962" />
+<img width="1892" height="922" alt="image" src="https://github.com/user-attachments/assets/c918a61a-95cc-4287-93b4-07193924484d" />
+<img width="1876" height="915" alt="image" src="https://github.com/user-attachments/assets/2242f8f3-9a62-49a9-bd59-ff147b7e0205" />
+
+
 
 
 
