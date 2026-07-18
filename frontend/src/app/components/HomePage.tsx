@@ -14,12 +14,13 @@ interface HomePageProps {
   onToggleFavorite: (id: string) => void;
   user: User | null;
   onOpenLogin: () => void;
+  onOpenChart: (product: Product) => void;
 }
 
 const CATEGORIES = ['Cilt Bakımı', 'Makyaj', 'Saç Bakımı', 'Parfüm'];
 const PRODUCT_CATS = ['Tümü', 'Temizleyici', 'Nemlendirici', 'Serum', 'Güneş Kremi', 'Bakım Kremi'];
 
-export function HomePage({ products, cartItemIds, favoriteIds, onAddToCart, onToggleFavorite, user, onOpenLogin }: HomePageProps) {
+export function HomePage({ products, cartItemIds, favoriteIds, onAddToCart, onToggleFavorite, user, onOpenLogin, onOpenChart }: HomePageProps) {
   const [search, setSearch] = useState('');
   const [activeMainCat, setActiveMainCat] = useState('Cilt Bakımı');
   const [activeProductCat, setActiveProductCat] = useState('Tümü');
@@ -128,6 +129,7 @@ export function HomePage({ products, cartItemIds, favoriteIds, onAddToCart, onTo
                   onToggleFavorite={onToggleFavorite}
                   user={user}
                   onOpenLogin={onOpenLogin}
+                  onOpenChart={onOpenChart}
                 />
               ))}
             </div>

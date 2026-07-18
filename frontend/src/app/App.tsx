@@ -10,6 +10,7 @@ import { Product, StoreName } from "./data";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { AuthModal } from "./components/AuthModal";
+import { ChartModal } from "./components/ChartModal";
 import "../styles/fonts.css";
 
 export default function App() {
@@ -25,6 +26,10 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalTab, setAuthModalTab] = useState<"login" | "register">("login");
+
+  // --- FİYAT ANALİZİ (CHART) MODAL STATE'İ ---
+  const [chartProduct, setChartProduct] = useState<Product | null>(null);
+  const openChart = (product: Product) => setChartProduct(product);
 
   // --- SUPABASE OTURUM DURUMUNU DİNLEME ---
   useEffect(() => {
@@ -262,6 +267,7 @@ export default function App() {
               setAuthModalTab("login");
               setIsAuthModalOpen(true);
             }}
+            onOpenChart={openChart}
           />
         )}
         {!loading && activeTab === "chat" && (
@@ -288,6 +294,7 @@ export default function App() {
               setAuthModalTab("login");
               setIsAuthModalOpen(true);
             }}
+            onOpenChart={openChart}
           />
         )}
         {!loading && activeTab === "profile" && (
@@ -309,6 +316,13 @@ export default function App() {
         isOpen={isAuthModalOpen}
         initialTab={authModalTab}
         onClose={() => setIsAuthModalOpen(false)}
+      />
+
+      <ChartModal
+        isOpen={chartProduct !== null}
+        productId={chartProduct?.id ?? null}
+        productTitle={chartProduct?.title}
+        onClose={() => setChartProduct(null)}
       />
     </div>
   );

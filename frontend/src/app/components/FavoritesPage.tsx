@@ -6,6 +6,7 @@ import {
   TrendingDown,
   ShoppingBag,
   LogIn,
+  ChevronRight,
 } from "lucide-react";
 import { PRODUCTS, STORE_COLORS, Product } from "../data";
 import { User } from "@supabase/supabase-js";
@@ -18,6 +19,7 @@ interface FavoritesPageProps {
   cartItemIds: Set<string>;
   user: User | null;
   onOpenLogin: () => void;
+  onOpenChart: (product: Product) => void;
 }
 
 // YENİ: Tek veri gelirse çökmemesi için ufak matematik güncellemeleri yapıldı
@@ -100,6 +102,7 @@ export function FavoritesPage({
   cartItemIds,
   user,
   onOpenLogin,
+  onOpenChart,
 }: FavoritesPageProps) {
   const [notifications, setNotifications] = useState<
     Set<string>
@@ -269,16 +272,47 @@ export function FavoritesPage({
 
                   {/* Fiyat Geçmişi (Son 1 Hafta) */}
                   {history.length > 0 && (
-                    <div className="px-4 py-2.5 border-t border-[#F0F0EC] flex items-center gap-3 bg-gray-50/50">
-                      <div className="flex-1">
-                        <div className="text-[10px] text-gray-400 mb-1.5 bg-red-300">
-                          Fiyat Geçmişi (1H)
+                    <div className="px-4 py-3 border-t border-[#F0F0EC] bg-gray-50/50">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="text-md font-semibold text-gray-600">
+                          Fiyat Değişimi
                         </div>
-                        <MiniPriceChart
-                          history={history}
-                         
-                        />
-                        
+                        <button
+                          onClick={() => onOpenChart(product)}
+                          className="flex items-center gap-0.5 text-[11px] font-semibold hover:opacity-80 transition-opacity"
+                          style={{ color: "#1B4332" }}
+                        >
+                          Fiyat analizini detaylı gör
+                          <ChevronRight size={13} />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <MiniPriceChart history={history} />
+                        <div className="text-right">
+                          <div className="text-[10px] text-gray-400">
+                            Eklendiğinde
+                          </div>
+                          <div className="text-[13px] font-bold text-[#1A1A1A]">
+                            ₺{priceAtAdded.toFixed(2)}
+                          </div>
+                          <div
+                            className="text-[10px] font-semibold"
+                            style={{
+                              color:
+                                priceDiff > 0
+                                  ? "#52B788"
+                                  : priceDiff < 0
+                                    ? "#E63946"
+                                    : "#999",
+                            }}
+                          >
+                            {priceDiff > 0
+                              ? `₺${priceDiff.toFixed(2)} düştü`
+                              : priceDiff < 0
+                                ? `₺${Math.abs(priceDiff).toFixed(2)} arttı`
+                                : "Fiyat sabit"}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
