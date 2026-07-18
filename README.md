@@ -138,55 +138,111 @@ Sprint 1 sonunda tamamlanmamış veya doğrulama süreci devam eden işler Sprin
 
 # Sprint 2
 
+Sprint 2’de temel hedefimiz, Sprint 1’de oluşturulan teknik temeli kullanıcıya dönük ana fonksiyonlarla genişletmek ve Beautrics’in kişiselleştirilmiş bakım deneyimini destekleyecek modülleri geliştirmektir.
+
+Beautrics; kullanıcı profili, onboarding seçimleri, favori ürün takibi, sepet oluşturma, chatbot önerileri, günlük bakım rutini, ürün karşılaştırma ve fiyat takibi gibi birden fazla kullanıcı akışıyla çalışan bir platform olduğu için bu sprintte özellikle kullanıcı verilerinin yönetilmesi ve öneri sistemini destekleyen yapıların oluşturulması önceliklendirilmiştir.
+
+Sprint sonunda birçok user story Closed durumuna taşınmış, To Do ve In Progress durumunda kalan işler ise Sprint 3’e aktarılmak üzere belirlenmiştir.
+
+Sprint kapsamına alınan user story’ler daha küçük task’lara bölünmüştür. Böylece her iş daha net takip edilebilir, sorumluluk atanabilir ve sprint board üzerinde ilerleme durumu izlenebilir hale getirilmiştir.
+
+Azure DevOps board üzerinde mavi kartlar user story’leri, sarı kartlar ise bu user story’lere bağlı task’ları temsil etmektedir. 
+
+Sprint 2 kapsamında ele alınan temel user story’ler:
+
+- **US-03:** Bir sistem olarak, kullanıcının kişisel bakım profilini ve onboarding seçimlerini saklamak istiyorum; böylece öneriler kullanıcıya özel üretilebilsin.
+- **US-04:** Bir kullanıcı olarak, ürünleri sepete ve favorilere eklemek, fiyat alarmı oluşturmak ve bildirim almak istiyorum; böylece alışverişimi planlayıp takip edebileyim.
+- **US-05:** Bir kullanıcı olarak, chatbot önerilerimin ve günlük bakım rutinlerimin profilime göre oluşmasını istiyorum; böylece sistem daha kişisel ve takip edilebilir öneriler sunsun.
+- **US-07:** Bir kullanıcı olarak, Beautrics’e kayıt olmak ve giriş yapmak istiyorum; böylece kişisel bakım profilime ve önerilerime erişebilirim.
+- **US-08:** Bir kullanıcı olarak, profil bilgilerimi görüntülemek ve güncellemek istiyorum; böylece bakım tercihlerimi zaman içinde değiştirebilirim.
+- **US-09:** Bir sistem olarak, ürün kataloğumuzu ve fiyatları güncel tutmak için 4 marketin verilerini günlük olarak otomatik kazımak istiyorum.
+- **US-10:** Bir sistem olarak, ürün kataloğunu genişletip erkek kullanıcıların da uygulamayı kullanmasını sağlamak istiyorum.
+- **US-11:** Bir kullanıcı olarak, ana sayfada 4 marketin fiyatlarını karşılaştıran ürün kartlarını ve bana özel önerilen ürünleri görmek istiyorum; böylece en uygun fiyatı anında fark edebilirim.
+- **US-12:** Bir yapay zeka sistemi olarak, kullanıcıların doğal dildeki sorularını veritabanındaki gerçek ürünlerle eşleştirmek istiyorum; böylece bütçeye uygun rutin önerebilirim.
+- **US-13:** Bir kullanıcı olarak, bakım tercihlerimi ister ilk girişte pop-up ile ister sohbet esnasında buton yönlendirmesiyle belirlemek istiyorum; böylece sistem beni zorlamadan tanıyabilir.
+- **US-14:** Bir kullanıcı olarak, beğendiğim ürünleri favorilerime eklemek istiyorum; böylece fiyat trendini analiz edip en uygun zamanda sepete ekleyebilirim.
 
 - **Daily Scrum**:
 
+Sprint 2 Daily Scrum toplantıları takım üyelerinin uygunluk durumuna göre Google Meet üzerinden gerçekleştirilmiştir. Toplantılarda her takım üyesinin üzerinde çalıştığı görevler, tamamlanan işler, devam eden çalışmalar ve varsa engel durumları değerlendirilmiştir.
+
+Daily Scrum sürecinde özellikle Azure DevOps board üzerindeki user story ve task durumları takip edilmiştir. Backlog, To Do, In Progress ve Done kolonlarındaki ilerlemeler kontrol edilmiş; tamamlanan görevlerin doğru statüye taşınmasına dikkat edilmiştir.
+
+Sprint 2 boyunca yapılan Google Meet toplantılarında kullanıcı profili, onboarding yapısı, favoriler, sepet, Supabase Auth, chatbot önerileri, günlük bakım rutini, ürün karşılaştırma kartları, web scraping, pgvector ve embedding pipeline kurulumu gibi başlıklar ele alınmıştır.
 
 - **Sprint board update**: Sprint board screenshotları:
-Sprint board üzerinde user story’lerin sprint boyunca geçirdiği durum değişiklikleri Azure DevOps üzerinden takip edilmiştir.
+
+Sprint board üzerinde user story’lerin Sprint 2 boyunca geçirdiği durum değişiklikleri Azure DevOps üzerinden takip edilmiştir.
+
+Sprint 2 board ekran görüntülerinde kullanıcı profili, onboarding, favoriler, sepet, üye kayıt/giriş, chatbot altyapısı, ürün karşılaştırma, web scraping gibi işlerin önemli ölçüde tamamlandığı görülmektedir.
+
+Sprint 2 backlog ekranlarında user story’lerin task’lara bölündüğü, her task için sorumlu kişilerin atandığı ve tamamlanan işlerin Done durumuna alındığı görülmektedir. 
+
 <img width="1737" height="829" alt="1" src="https://github.com/user-attachments/assets/b675498c-509c-4c7a-9205-1f80d9a8e16e" />
-<img width="1738" height="808" alt="2" src="https://github.com/user-attachments/assets/d09767bc-6431-43aa-a28b-f384401d8f5d" />
 <img width="1733" height="829" alt="3" src="https://github.com/user-attachments/assets/3eba0bbf-50ed-413d-b80d-ed5ba6841e68" />
-<img width="1709" height="815" alt="4" src="https://github.com/user-attachments/assets/c9923f48-f0c9-43ce-8d3c-e0919956ddcb" />
 <img width="1713" height="832" alt="5" src="https://github.com/user-attachments/assets/a242bfb2-4246-4532-9d19-2f410b6c3c03" />
 <img width="1714" height="830" alt="image" src="https://github.com/user-attachments/assets/9da01540-832c-4a08-9ef5-fb844643d02c" />
-<img width="1708" height="827" alt="image" src="https://github.com/user-attachments/assets/0aa90a2b-6664-425a-b9f7-9c54d21608f0" />
 <img width="1698" height="826" alt="image" src="https://github.com/user-attachments/assets/3a2fd05d-6a59-4b61-91b6-3cb41d4fe1cc" />
 <img width="1697" height="817" alt="image" src="https://github.com/user-attachments/assets/8fcd0a4a-320c-4a07-9220-81a46a5cc81d" />
 <img width="1690" height="805" alt="image" src="https://github.com/user-attachments/assets/97ce5e83-7edf-41c4-a97c-16d8628ae67d" />
-<img width="1698" height="817" alt="image" src="https://github.com/user-attachments/assets/77e377c4-9d12-4419-a72b-ba31f0da9e26" />
-
-
-
-
-
-
 
 - **Ürün Durumu**:
-  
+
+Sprint 2 kapsamında Beautrics’in kullanıcıya dönük temel fonksiyonlarını destekleyecek altyapı geliştirilmiştir. Sprint 1’de Figma üzerinde hazırlanan başlangıç wireframe yapısı, Sprint 2’de kullanıcı profili, onboarding, favoriler, sepet ve öneri sistemiyle ilişkilendirilecek şekilde genişletilmiştir.
+
+Bu sprintte ürünün tüm fonksiyonlarının tamamen tamamlanmasından ziyade, kişiselleştirilmiş kullanıcı deneyimini destekleyecek temel veri yapılarının ve kullanıcı akışlarının oluşturulmasına odaklanılmıştır.
+
+Sprint 2 sonunda kullanıcı profili ve onboarding seçimlerinin saklanmasına yönelik veri yapısı hazırlanmış, üye kayıt/giriş süreçleri Supabase Auth ile desteklenmiş, favori ürünler ve sepet yapısı kullanıcı akışıyla ilişkilendirilmiştir. Ayrıca chatbot önerileri, günlük bakım rutini ve ürün karşılaştırma süreçleri için gerekli veri yapıları oluşturulmuştur.
+
 Ekran görüntüleri:
+
 <img width="1887" height="913" alt="image" src="https://github.com/user-attachments/assets/2cc9db25-6e68-48da-9f6c-fb4fa52ded8d" />
 <img width="1872" height="920" alt="image" src="https://github.com/user-attachments/assets/abac31a8-ee5f-4758-95d6-2817ea6ae7a0" />
 <img width="1886" height="917" alt="image" src="https://github.com/user-attachments/assets/8ba2d5f3-4ad4-417c-90b7-0e0c014ce962" />
 <img width="1892" height="922" alt="image" src="https://github.com/user-attachments/assets/c918a61a-95cc-4287-93b4-07193924484d" />
 <img width="1876" height="915" alt="image" src="https://github.com/user-attachments/assets/2242f8f3-9a62-49a9-bd59-ff147b7e0205" />
 
-
-
-
-
 ## Sprint Review
 
+Sprint Review sonucunda Sprint 2 hedeflerinin büyük ölçüde karşılandığı görülmüştür. Sprint 1’de oluşturulan teknik temel, Sprint 2’de kullanıcı profili, onboarding, favoriler, sepet, chatbot önerileri, ürün karşılaştırma ve web scraping süreçleriyle genişletilmiştir.
 
+Sprint sonunda alınan kararlar:
+
+- Kullanıcı profili ve onboarding seçimlerinin sistemde saklanabilmesi için oluşturulan veri yapısının sonraki sprintte ürün önerileriyle daha güçlü şekilde ilişkilendirilmesine karar verilmiştir.
+- Favoriler ve sepet yapısının kullanıcı deneyimi açısından temel akışlardan biri olduğu görülmüş, bu alanların Sprint 3’te test ve iyileştirme adımlarıyla desteklenmesine karar verilmiştir.
+- Supabase Auth ile hazırlanan üye kayıt ve giriş süreçlerinin sonraki sprintte uçtan uca kullanıcı senaryolarıyla test edilmesi planlanmıştır.
+- Chatbot önerileri için oluşturulan veritabanı tablolarının, ürün kartları ve kullanıcı profiliyle birlikte çalışacak şekilde geliştirilmesine karar verilmiştir.
+- Web scraping yapısının günlük ürün ve fiyat güncelliğini sağlamak için kritik olduğu değerlendirilmiş, veri doğruluğu kontrollerinin Sprint 3’te sürdürülmesine karar verilmiştir.
+- Sprint sonunda To Do ve In Progress durumda kalan AI soru butonu, test işlemleri ve ürün yelpazesinin genişletilmesi kapsamındaki işlerin Sprint 3’te tamamlanmasına karar verilmiştir.
+
+Sprint Review katılımcıları:
+
+- Edanur Ay
+- Sude Gül ÜZÜM
+- Ayşegül Yılmaz
+- Muhammet Yusuf Yılmaz
 
 ## Sprint Retrospective
 
+Sprint 2 sonunda takım içi süreç, görev dağılımı ve board yönetimi açısından aşağıdaki değerlendirmeler yapılmıştır:
 
-
-
+- Sprint 2’de Sprint 1’e göre daha fazla user story tamamlanmış ve task takibi daha düzenli hale getirilmiştir.
+- Kullanıcı profili, onboarding, favoriler ve sepet gibi birbirine bağlı modüllerde işlerin bağımlılıklarının sprint başında daha net belirlenmesi gerektiği görülmüştür.
+- Supabase, web scraping, pgvector ve chatbot altyapısı gibi teknik konularda yapılan işlerin ürün ekranlarıyla ilişkisinin daha görünür hale getirilmesi gerektiği değerlendirilmiştir.
+- Test işlemlerinin sprint sonuna kalmaması için Sprint 3’te test görevlerinin daha erken başlatılmasına karar verilmiştir.
 
 ## Sprint 3’e Aktarılan İşler
 
+Sprint 2 sonunda tamamlanmamış veya doğrulama süreci devam eden işler Sprint 3’e aktarılmıştır:
+
+- Ürün kartlarında AI Sor butonunun tamamlanması
+- Chatbot üzerinden ürün önerisi alma akışının geliştirilmesi
+- UI/UX testlerinin tamamlanması
+- Chatbot testlerinin tamamlanması
+- Database testlerinin tamamlanması
+- Ürün yelpazesinin genişletilmesi
+- Erkek kullanıcıların da uygulamayı kullanabilmesi için ürün kataloğunun genişletilmesi
+- Sprint 2’de tamamlanan kullanıcı profili, onboarding, favoriler, sepet ve öneri altyapısının uçtan uca test edilmesi
 
 ---
 
@@ -197,7 +253,6 @@ Ekran görüntüleri:
 
 
 - **Sprint board update**: Sprint board screenshotları:
-Sprint board üzerinde user story’lerin sprint boyunca geçirdiği durum değişiklikleri Azure DevOps üzerinden takip edilmiştir.
 
 
 
