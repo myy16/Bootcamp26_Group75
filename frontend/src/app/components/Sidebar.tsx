@@ -64,7 +64,7 @@ export function Sidebar({
         <div className="font-serif text-2xl text-white tracking-tight select-none">
           beau<span className="italic text-[#FFB7B2]">trics</span>
         </div>
-        <div className="mt-1.5 text-[11px] text-white/45 tracking-[0.8px] uppercase">
+        <div className="mt-1.5 text-[11px] text-white/45 tracking-[0.8px] ">
           Akıllı Güzellik Alışverişi
         </div>
       </div>

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import ReactECharts from "echarts-for-react";
 import { X, ArrowDown, ArrowUp } from "lucide-react";
 import { supabase } from "../supabase";
 import { STORE_COLORS, StoreName } from "../data";
+
 
 const MARKET_ID_TO_STORE: Record<number, StoreName> = {
   1: "Watsons",
@@ -50,6 +52,7 @@ const SIGNAL_LABELS: Record<string, { label: string; color: string; bg: string }
 };
 
 function fmtDate(d: Date): string {
+  // Ay adı yazıyla (ör. "18 Haz")
   return d.toLocaleDateString("tr-TR", {
     day: "2-digit",
     month: "short",
@@ -61,77 +64,6 @@ function fmtTL(v: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} ₺`;
-}
-
-function LineChart({
-  historyByStore,
-}: {
-  historyByStore: Record<StoreName, { date: string; price: number }[]>;
-}) {
-  const width = 840;
-  const height = 420;
-  const padding = 36;
-
-  const allPoints = Object.values(historyByStore).flat();
-  if (allPoints.length === 0) {
-    return (
-      <div className="flex h-[420px] items-center justify-center rounded-2xl border border-dashed border-[#DDDAD3] bg-[#FAF9F5] text-sm text-[#777]">
-        Bu ürün için fiyat geçmişi bulunamadı.
-      </div>
-    );
-  }
-
-  const prices = allPoints.map((item) => item.price);
-  const minPrice = Math.min(...prices);
-  const maxPrice = Math.max(...prices);
-  const range = maxPrice - minPrice || 1;
-
-  const dates = Array.from(new Set(allPoints.map((item) => item.date))).sort();
-  const plotWidth = width - padding * 2;
-  const plotHeight = height - padding * 2;
-
-  const xForIndex = (index: number) => {
-    if (dates.length <= 1) return padding + plotWidth / 2;
-    return padding + (index / (dates.length - 1)) * plotWidth;
-  };
-
-  const yForPrice = (price: number) => padding + plotHeight - ((price - minPrice) / range) * plotHeight;
-
-  return (
-    <div className="overflow-x-auto">
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="min-w-full">
-        {[0, 1, 2, 3].map((tick) => {
-          const y = padding + (plotHeight / 3) * tick;
-          return <line key={tick} x1={padding} x2={width - padding} y1={y} y2={y} stroke="#F0F0EC" strokeWidth={1} />;
-        })}
-
-        {(Object.keys(historyByStore) as StoreName[]).map((store) => {
-          const color = STORE_COLORS[store].color;
-          const series = historyByStore[store];
-          if (!series.length) return null;
-
-          const points = dates
-            .map((date, index) => {
-              const match = series.find((item) => item.date === date);
-              if (!match) return null;
-              return `${xForIndex(index)},${yForPrice(match.price)}`;
-            })
-            .filter(Boolean) as string[];
-
-          const d = points.map((point, index) => `${index === 0 ? "M" : "L"}${point}`).join(" ");
-          return (
-            <g key={store}>
-              <path d={d} fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-              {points.map((point, index) => {
-                const [x, y] = point.split(",").map(Number);
-                return <circle key={`${store}-${index}`} cx={x} cy={y} r={3} fill={color} />;
-              })}
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
 }
 
 export function ChartModal({
@@ -153,12 +85,12 @@ export function ChartModal({
       try {
         const pid = Number(productId);
         const [logRes, predRes] = await Promise.all([
-          supabase
+          supabase!
             .from("price_log")
             .select("m_id, price, date")
             .eq("p_id", pid)
             .order("date", { ascending: true }),
-          supabase
+          supabase!
             .from("predictions")
             .select(
               "m_id, future_prices, insight_text, signal, confidence, change_pct, min_price, max_price",
@@ -180,26 +112,33 @@ export function ChartModal({
     fetchData();
   }, [isOpen, productId]);
 
-  const { historyByStore, periodMin, periodMax, legendStores } = useMemo(() => {
+  const { option, periodMin, periodMax, legendStores } = useMemo(() => {
     const showPredictions = range === "F15";
 
-    const storeHistory: Record<StoreName, { date: string; price: number }[]> = {
-      Watsons: [],
-      Gratis: [],
-      Mion: [],
-      Rossmann: [],
-    };
+    // Mağaza bazında geçmiş verileri grupla
+    const storeHistory: Record<
+      string,
+      { date: string; price: number }[]
+    > = {};
 
     for (const row of logs) {
       const store = MARKET_ID_TO_STORE[row.m_id];
       if (!store) continue;
-      storeHistory[store].push({ date: row.date, price: Number(row.price) });
+      if (!storeHistory[store]) storeHistory[store] = [];
+      storeHistory[store].push({
+        date: row.date,
+        price: Number(row.price),
+      });
     }
 
+    // Aralık filtresi (geçmiş gün sayısı)
     const rangeDef = RANGES.find((r) => r.key === range)!;
     const cutoff =
-      rangeDef.days != null ? Date.now() - rangeDef.days * 24 * 60 * 60 * 1000 : null;
+      rangeDef.days != null
+        ? Date.now() - rangeDef.days * 24 * 60 * 60 * 1000
+        : null;
 
+    // Tüm geçmiş tarihleri topla
     const allHistDatesSet = new Set<string>();
     Object.values(storeHistory).forEach((arr) =>
       arr.forEach((p) => {
@@ -210,7 +149,12 @@ export function ChartModal({
     );
     const histDates = Array.from(allHistDatesSet).sort();
 
-    const lastHistDate = histDates.length > 0 ? new Date(histDates[histDates.length - 1]) : new Date();
+    // Son geçmiş tarihten itibaren 15 günlük tahmin tarihleri üret
+    // (yalnızca "Gelecek 15 Gün" görünümünde)
+    const lastHistDate =
+      histDates.length > 0
+        ? new Date(histDates[histDates.length - 1])
+        : new Date();
     const futureDates: string[] = [];
     if (showPredictions) {
       for (let i = 1; i <= 15; i++) {
@@ -220,42 +164,169 @@ export function ChartModal({
       }
     }
 
+    const axisDates = [...histDates, ...futureDates];
+    const axisLabels = axisDates.map((d) => fmtDate(new Date(d)));
+
+    const series: any[] = [];
     const legendStores: { name: StoreName; color: string }[] = [];
     const allValues: number[] = [];
 
     const stores = Object.keys(storeHistory) as StoreName[];
 
     for (const store of stores) {
-      const color = STORE_COLORS[store]?.color || STORE_COLORS.Mion.color;
-      const map = new Map(storeHistory[store].map((p) => [p.date, p.price]));
+      const color =
+        STORE_COLORS[store]?.color || STORE_COLORS.Mion.color;
+      const map = new Map(
+        storeHistory[store].map((p) => [p.date, p.price]),
+      );
 
-      const histData = histDates.map((d) => map.get(d) ?? null);
+      // Geçmiş çizgi (düz)
+      const histData = axisDates.map((d, i) =>
+        i < histDates.length ? (map.get(d) ?? null) : null,
+      );
       histData.forEach((v) => {
-        if (v != null && (v as number) > 0) allValues.push(v as number);
+        if (v != null && (v as number) > 0)
+          allValues.push(v as number);
       });
+
+      const lastReal = [...histData]
+        .reverse()
+        .find((v) => v != null) as number | undefined;
 
       legendStores.push({ name: store, color });
 
+      // Geçmiş serisi — legend'de bu mağaza adıyla görünür
+      series.push({
+        name: store,
+        type: "line",
+        smooth: true,
+        symbol: "none",
+        connectNulls: false,
+        lineStyle: { color, width: 2 },
+        itemStyle: { color },
+        data: histData,
+      });
+
+      // Tahmin serisi — yalnızca "Gelecek 15 Gün" görünümünde
       if (showPredictions) {
-        const pred = predictions.find((p) => MARKET_ID_TO_STORE[p.m_id] === store);
+        const pred = predictions.find(
+          (p) => MARKET_ID_TO_STORE[p.m_id] === store,
+        );
         if (pred && Array.isArray(pred.future_prices)) {
           const futureVals = pred.future_prices.slice(0, 15);
+          const predData = axisDates.map((_, i) => {
+            if (i === histDates.length - 1)
+              return lastReal ?? null;
+            if (i >= histDates.length) {
+              return futureVals[i - histDates.length] ?? null;
+            }
+            return null;
+          });
           futureVals.forEach((v) => {
             if (v != null && v > 0) allValues.push(v);
+          });
+
+          series.push({
+            name: `${store} · tahmin`, // legend'de gizlenecek
+            type: "line",
+            smooth: true,
+            symbol: "none",
+            connectNulls: true,
+            lineStyle: { color, width: 2, type: "dashed" },
+            itemStyle: { color },
+            data: predData,
           });
         }
       }
     }
 
-    const periodMin = allValues.length > 0 ? Math.min(...allValues) : 0;
-    const periodMax = allValues.length > 0 ? Math.max(...allValues) : 0;
-    return { historyByStore: storeHistory, periodMin, periodMax, legendStores };
+    const periodMin =
+      allValues.length > 0 ? Math.min(...allValues) : 0;
+    const periodMax =
+      allValues.length > 0 ? Math.max(...allValues) : 0;
+
+    // Legend yalnızca mağaza adlarını (renkli nokta ile) gösterir
+    const legendData = legendStores.map((s) => s.name);
+
+    const option = {
+      color: legendStores.map((s) => s.color),
+      tooltip: {
+        trigger: "axis",
+        valueFormatter: (v: number) =>
+          v != null ? fmtTL(v) : "-",
+      },
+      legend: {
+        bottom: 0,
+        type: "scroll",
+        icon: "circle",
+        data: legendData,
+        textStyle: { fontSize: 12, color: "#444" },
+      },
+      grid: {
+        top: 24,
+        left: 8,
+        right: 24,
+        bottom: 48,
+        containLabel: true,
+      },
+      xAxis: {
+        type: "category",
+        boundaryGap: false,
+        data: axisLabels,
+        axisLine: { lineStyle: { color: "#E0E0DA" } },
+        axisLabel: { color: "#999", fontSize: 10 },
+        splitLine: { show: false },
+      },
+      yAxis: {
+        type: "value",
+        scale: true,
+        axisLabel: {
+          color: "#999",
+          fontSize: 10,
+          formatter: (v: number) =>
+            `${v.toLocaleString("tr-TR")} ₺`,
+        },
+        splitLine: { lineStyle: { color: "#F0F0EC" } },
+      },
+      series:
+        histDates.length > 0
+          ? series.map((s) =>
+              // "Gelecek 15 Gün" görünümünde tahmin bölgesini vurgula
+              s.name.includes("tahmin") && showPredictions
+                ? {
+                    ...s,
+                    markArea: {
+                      silent: true,
+                      itemStyle: {
+                        color: "rgba(82,183,136,0.06)",
+                      },
+                      data: [
+                        [
+                          {
+                            xAxis:
+                              axisLabels[histDates.length - 1],
+                          },
+                          {
+                            xAxis:
+                              axisLabels[axisLabels.length - 1],
+                          },
+                        ],
+                      ],
+                    },
+                  }
+                : s,
+            )
+          : [],
+    };
+
+    return { option, periodMin, periodMax, legendStores };
   }, [logs, predictions, range]);
 
   if (!isOpen) return null;
 
   const hasData = logs.length > 0 || predictions.length > 0;
 
+  // Tahmin içgörülerini (insight) mağaza bazında hazırla
   const predictionInsights = predictions
     .map((p) => ({
       store: MARKET_ID_TO_STORE[p.m_id],
@@ -264,106 +335,157 @@ export function ChartModal({
       confidence: p.confidence,
       changePct: p.change_pct,
     }))
-    .filter((item) => Boolean(item.insight || item.signal));
+    .filter((p) => p.store && p.insight);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-[28px] bg-white shadow-[0_30px_120px_rgba(0,0,0,0.25)]">
-        <div className="flex items-start justify-between border-b border-[#E8E8E2] px-6 py-5">
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#2D6A4F]">Fiyat analizi</div>
-            <h2 className="mt-1 text-2xl font-bold text-[#1A1A1A]">{productTitle || "Ürün fiyat geçmişi"}</h2>
-            <p className="mt-1 text-sm text-[#666]">Mağaza bazlı geçmiş fiyatlar ve tahminler</p>
-          </div>
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-8 overflow-hidden font-sans"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Başlık */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E8E2] bg-[#1B4332]">
+          <h2 className="text-base font-bold text-white pr-4 line-clamp-1">
+            {productTitle || "Ürün"} Fiyat Analizi
+          </h2>
           <button
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E8E8E2] bg-white text-[#666] transition-colors hover:bg-[#FAF9F5]"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition-colors shrink-0"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
-        <div className="max-h-[calc(90vh-88px)] overflow-y-auto px-6 py-5">
-          <div className="flex flex-wrap gap-2">
-            {RANGES.map((item) => {
-              const active = range === item.key;
+        <div className="p-6">
+    
+
+          {/* Aralık butonları */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-5">
+            {RANGES.map((r) => {
+              const active = range === r.key;
               return (
                 <button
-                  key={item.key}
-                  onClick={() => setRange(item.key)}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                    active ? "bg-[#1B4332] text-white" : "border border-[#D5D5CF] bg-white text-[#555] hover:bg-[#FAF9F5]"
+                  key={r.key}
+                  onClick={() => setRange(r.key)}
+                  className={`px-4 py-2 rounded-lg border text-[13px] font-medium transition-colors ${
+                    active
+                      ? "border-[#2D6A4F] text-[#2D6A4F] bg-[#EBF5F0]"
+                      : "border-[#E0E0DA] text-[#666] bg-white hover:bg-gray-50"
                   }`}
                 >
-                  {item.label}
+                  {r.label}
                 </button>
               );
             })}
           </div>
 
-          <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_360px]">
-            <div className="rounded-[24px] border border-[#E8E8E2] bg-white p-4 shadow-sm">
-              {loading ? (
-                <div className="flex h-[360px] items-center justify-center text-sm text-[#666]">Veriler yükleniyor...</div>
-              ) : (
-                <LineChart historyByStore={historyByStore} />
-              )}
+          {loading ? (
+            <div className="h-[320px] flex items-center justify-center text-sm text-gray-400">
+              Fiyat geçmişi yükleniyor...
             </div>
+          ) : !hasData ? (
+            <div className="h-[320px] flex items-center justify-center text-sm text-gray-400 text-center px-6">
+              Bu ürün için henüz yeterli fiyat geçmişi veya tahmin
+              verisi bulunmuyor.
+            </div>
+          ) : (
+            <ReactECharts
+              option={option}
+              style={{ height: 340, width: "100%" }}
+              notMerge
+            />
+          )}
 
-            <div className="space-y-4">
-              <div className="rounded-[24px] border border-[#E8E8E2] bg-[#FAF9F5] p-4">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#6F6F67]">Özet</div>
-                <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-2xl bg-white p-3 shadow-sm">
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-[#8C8C84]">Min</div>
-                    <div className="mt-1 text-lg font-bold text-[#1A1A1A]">{periodMin ? fmtTL(periodMin) : "-"}</div>
+          {/* Özet: dönem içi en düşük / en yüksek fiyat (yan yana) */}
+          {hasData && periodMin > 0 && (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-3 bg-[#F5F5F0] rounded-xl p-3.5">
+                <div className="w-9 h-9 rounded-full bg-[#EBF5F0] flex items-center justify-center shrink-0">
+                  <ArrowDown size={18} className="text-[#52B788]" />
+                </div>
+                <div>
+                  <div className="text-[11px] text-gray-500">
+                    Dönem içi en düşük
                   </div>
-                  <div className="rounded-2xl bg-white p-3 shadow-sm">
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-[#8C8C84]">Max</div>
-                    <div className="mt-1 text-lg font-bold text-[#1A1A1A]">{periodMax ? fmtTL(periodMax) : "-"}</div>
+                  <div className="text-[16px] font-bold text-[#1A1A1A]">
+                    {fmtTL(periodMin)}
                   </div>
                 </div>
               </div>
 
-              {predictionInsights.length > 0 && (
-                <div className="rounded-[24px] border border-[#E8E8E2] bg-white p-4 shadow-sm">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#6F6F67]">İçgörüler</div>
-                  <div className="mt-3 space-y-3">
-                    {predictionInsights.map((item) => {
-                      const signalKey = (item.signal || "stable").toLowerCase();
-                      const signal = SIGNAL_LABELS[signalKey] || SIGNAL_LABELS.stable;
-                      return (
-                        <div key={`${item.store}-${item.signal}`} className="rounded-2xl border border-[#E8E8E2] p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="text-sm font-semibold text-[#1A1A1A]">{item.store}</div>
-                            <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: signal.bg, color: signal.color }}>
-                              {signal.label}
-                            </span>
-                          </div>
-                          {item.insight && <p className="mt-2 text-sm leading-6 text-[#555]">{item.insight}</p>}
-                          <div className="mt-2 flex items-center gap-3 text-[11px] text-[#777]">
-                            {item.confidence != null && <span>Güven: %{Math.round(item.confidence * 100)}</span>}
-                            {item.changePct != null && <span>Değişim: %{item.changePct.toFixed(1)}</span>}
-                          </div>
-                        </div>
-                      );
-                    })}
+              <div className="flex items-center gap-3 bg-[#F5F5F0] rounded-xl p-3.5">
+                <div className="w-9 h-9 rounded-full bg-[#FDECEC] flex items-center justify-center shrink-0">
+                  <ArrowUp size={18} className="text-[#E63946]" />
+                </div>
+                <div>
+                  <div className="text-[11px] text-gray-500">
+                    Dönem içi en yüksek
+                  </div>
+                  <div className="text-[16px] font-bold text-[#1A1A1A]">
+                    {fmtTL(periodMax)}
                   </div>
                 </div>
-              )}
+              </div>
+            </div>
+          )}
 
-              <div className="rounded-[24px] border border-[#E8E8E2] bg-white p-4 shadow-sm">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#6F6F67]">Legend</div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {legendStores.map((store) => (
-                    <div key={store.name} className="rounded-full px-3 py-1 text-xs font-semibold" style={{ background: `${store.color}14`, color: store.color }}>
-                      {store.name}
+          {/* Tahmin içgörüleri (insight_text, signal, confidence) */}
+          {hasData && predictionInsights.length > 0 && (
+            <div className="mt-8 space-y-2.5">
+              <div className="text-[13px] font-bold text-[#1A1A1A]">
+                Yapay Zeka Tahmini
+              </div>
+              {predictionInsights.map((p) => {
+                const storeColor =
+                  STORE_COLORS[p.store as StoreName]?.color ||
+                  STORE_COLORS.Mion.color;
+                const sig =
+                  (p.signal && SIGNAL_LABELS[p.signal]) ||
+                  SIGNAL_LABELS.stable;
+                return (
+                  <div
+                    key={p.store}
+                    className="bg-[#F5F5F0] rounded-xl p-3.5"
+                  >
+                    <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ background: storeColor }}
+                        />
+                        <span className="text-[13px] font-bold text-[#1A1A1A]">
+                          {p.store}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                          style={{
+                            background: sig.bg,
+                            color: sig.color,
+                          }}
+                        >
+                          {sig.label}
+                        </span>
+                        {p.confidence != null && (
+                          <span className="text-[10px] font-semibold text-gray-500">
+                            Güven: %
+                            {Number(p.confidence).toFixed(0)}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <p className="text-[12px] text-gray-600 leading-relaxed">
+                      {p.insight}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

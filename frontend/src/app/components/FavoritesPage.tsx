@@ -1,8 +1,7 @@
 import { useState } from "react";
 import {
   Bell,
-  BellOff,
-  Trash2,
+  X,
   TrendingDown,
   ShoppingBag,
   LogIn,
@@ -10,6 +9,8 @@ import {
 } from "lucide-react";
 import { PRODUCTS, STORE_COLORS, Product } from "../data";
 import { User } from "@supabase/supabase-js";
+
+const SIDEBAR_COLOR = "#1B4332";
 
 interface FavoritesPageProps {
   products?: Product[];
@@ -22,7 +23,6 @@ interface FavoritesPageProps {
   onOpenChart: (product: Product) => void;
 }
 
-// YENİ: Tek veri gelirse çökmemesi için ufak matematik güncellemeleri yapıldı
 function MiniPriceChart({
   history,
 }: {
@@ -34,14 +34,13 @@ function MiniPriceChart({
   const min = Math.min(...prices);
   const max = Math.max(...prices);
   const range = max - min || 1; // 0'a bölünme hatasını önler
-  const w = 80,
-    h = 30;
+  const w = 120,
+    h = 36;
 
   const pts = prices.map((p, i) => {
-    // Sadece 1 veri varsa tam ortaya yerleştir, yoksa alana yay
     const x =
       prices.length > 1 ? (i / (prices.length - 1)) * w : w / 2;
-    const y = h - ((p - min) / range) * (h - 6) - 3;
+    const y = h - ((p - min) / range) * (h - 8) - 4;
     return `${x},${y}`;
   });
 
@@ -49,48 +48,22 @@ function MiniPriceChart({
   const color = isDown ? "#52B788" : "#E63946";
 
   return (
-    <div className="flex flex-between gap-1 bg-yellow-700">
-      <div className="flex flex-col  gap-1 bg-yellow-300">
-        <svg
-          width={w}
-          height={h}
-          className="overflow-visible bg-purple-300"
-        >
-          {prices.length > 1 && (
-            <polyline
-              points={pts.join(" ")}
-              fill="none"
-              stroke={color}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          )}
-          {prices.map((p, i) => {
-            const [x, y] = pts[i].split(",").map(Number);
-            return (
-              <circle
-                key={i}
-                cx={x}
-                cy={y}
-                r={2}
-                fill={color}
-              />
-            );
-          })}
-        </svg>
-        <div
-          className="text-[10px] font-semibold flex items-center gap-0.5"
-          style={{ color }}
-        >
-          <TrendingDown size={10} />
-          {isDown
-            ? `₺${(prices[0] - prices[prices.length - 1]).toFixed(2)} düştü`
-            : "Sabit"}
-        </div>
-      </div>
-      <span className="text-sm">Fiyat Analizini Detaylı Gör</span>
-    </div>
+    <svg width={w} height={h} className="overflow-visible">
+      {prices.length > 1 && (
+        <polyline
+          points={pts.join(" ")}
+          fill="none"
+          stroke={color}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+      {prices.map((p, i) => {
+        const [x, y] = pts[i].split(",").map(Number);
+        return <circle key={i} cx={x} cy={y} r={2} fill={color} />;
+      })}
+    </svg>
   );
 }
 
@@ -104,9 +77,9 @@ export function FavoritesPage({
   onOpenLogin,
   onOpenChart,
 }: FavoritesPageProps) {
-  const [notifications, setNotifications] = useState<
-    Set<string>
-  >(new Set());
+  const [notifications, setNotifications] = useState<Set<string>>(
+    new Set(),
+  );
   const source =
     products && products.length > 0 ? products : PRODUCTS;
   const favorites = source.filter((p) => favoriteIds.has(p.id));
@@ -173,9 +146,8 @@ export function FavoritesPage({
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-5">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-5">
             {favorites.map((product) => {
-              // YENİ 1: Sadece fiyatı 0'dan büyük (gerçek) fiyatları alıyoruz
               const validStores = (product.stores || []).filter(
                 (s) => s.price > 0,
               );
@@ -192,7 +164,6 @@ export function FavoritesPage({
                 ? STORE_COLORS[cheapest.name]
                 : STORE_COLORS.Mion;
 
-              // YENİ 2: Sadece son 1 haftanın (en fazla 7) verisini alıyoruz
               const history = (product.history || []).slice(-7);
               const hasNotif = notifications.has(product.id);
               const inCart = cartItemIds.has(product.id);
@@ -208,15 +179,24 @@ export function FavoritesPage({
               return (
                 <div
                   key={product.id}
-                  className="bg-white rounded-xl border-[1.5px] border-[#E8E8E2] shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col"
+                  className="relative bg-white rounded-xl border-[1.5px] border-[#E8E8E2] shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col"
                 >
+                  {/* Sağ üst: Favorilerden kaldır (çarpı) */}
+                  <button
+                    onClick={() => onToggleFavorite(product.id)}
+                    title="Favorilerden kaldır"
+                    className="absolute top-2.5 right-2.5 z-10 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm border border-[#E8E8E2] flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-200 shadow-sm transition-colors"
+                  >
+                    <X size={15} />
+                  </button>
+
                   <div className="flex">
                     <img
                       src={product.image}
                       alt={product.title}
                       className="w-[110px] h-[110px] object-cover shrink-0"
                     />
-                    <div className="flex-1 p-3.5 flex flex-col justify-between">
+                    <div className="flex-1 p-3.5 pr-9 flex flex-col justify-between">
                       <div>
                         <div className="text-[10px] font-semibold text-[#2D6A4F] uppercase tracking-wide mb-1">
                           {product.brand}
@@ -270,7 +250,7 @@ export function FavoritesPage({
                     </div>
                   </div>
 
-                  {/* Fiyat Geçmişi (Son 1 Hafta) */}
+                  {/* Fiyat Değişim Alanı */}
                   {history.length > 0 && (
                     <div className="px-4 py-3 border-t border-[#F0F0EC] bg-gray-50/50">
                       <div className="flex items-center justify-between mb-1">
@@ -280,7 +260,7 @@ export function FavoritesPage({
                         <button
                           onClick={() => onOpenChart(product)}
                           className="flex items-center gap-0.5 text-[11px] font-semibold hover:opacity-80 transition-opacity"
-                          style={{ color: "#1B4332" }}
+                          style={{ color: SIDEBAR_COLOR }}
                         >
                           Fiyat analizini detaylı gör
                           <ChevronRight size={13} />
@@ -317,6 +297,7 @@ export function FavoritesPage({
                     </div>
                   )}
 
+                  {/* Aksiyon butonları */}
                   <div className="p-3 border-t border-[#F0F0EC] flex gap-2 mt-auto">
                     <button
                       onClick={() => onAddToCart(product)}
@@ -330,28 +311,23 @@ export function FavoritesPage({
                       {inCart ? "Sepette" : "Sepete Ekle"}
                     </button>
                     <button
-                      onClick={() =>
-                        toggleNotification(product.id)
+                      onClick={() => toggleNotification(product.id)}
+                      title={
+                        hasNotif
+                          ? "Alarm kurulu"
+                          : "Fiyat alarmı kur"
                       }
-                      className={`px-3 py-2 rounded-lg border-[1.5px] flex items-center gap-1.5 text-xs transition-colors ${
+                      className={`flex items-center justify-center gap-1.5 py-2 px-3.5 rounded-lg border-[1.5px] text-xs font-medium transition-colors ${
                         hasNotif
                           ? "border-[#2D6A4F] bg-[#EBF5F0] text-[#2D6A4F]"
-                          : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
+                          : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
                       }`}
                     >
-                      {hasNotif ? (
-                        <Bell size={14} />
-                      ) : (
-                        <BellOff size={14} />
-                      )}
-                    </button>
-                    <button
-                      onClick={() =>
-                        onToggleFavorite(product.id)
-                      }
-                      className="px-2.5 py-2 rounded-lg border-[1.5px] border-gray-200 bg-white text-gray-400 hover:text-red-500 hover:border-red-200 transition-colors"
-                    >
-                      <Trash2 size={14} />
+                      <Bell
+                        size={14}
+                        className={hasNotif ? "fill-[#2D6A4F]" : ""}
+                      />
+                      {hasNotif ? "Alarm Kurulu" : "Alarm Kur"}
                     </button>
                   </div>
                 </div>
