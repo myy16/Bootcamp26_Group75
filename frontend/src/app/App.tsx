@@ -308,6 +308,7 @@ export default function App() {
             favoriteCount={favoriteIds.size}
             cartCount={cartItems.length}
             productCount={products.length}
+            onNavigate={setActiveTab}
           />
         )}
       </main>

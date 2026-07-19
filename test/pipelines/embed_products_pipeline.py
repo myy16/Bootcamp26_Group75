@@ -166,7 +166,7 @@ def main():
     products = None
     for attempt in range(1, 4):
         try:
-            prod_query = sb.table("products").select("id, brand_id, category_id, universal_name")
+            prod_query = sb.table("products").select("id, brand_id, category_id, universal_name").is_("embedding", "null")
             if not args.all:
                 prod_query = prod_query.limit(args.limit)
             products_res = prod_query.execute()

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   User,
   Sparkles,
+  LogOut,
   Shield,
   Mail,
   Lock,
@@ -9,7 +10,6 @@ import {
   Leaf,
   Heart,
   ShoppingBag,
-  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { User as SupabaseUser } from "@supabase/supabase-js";
@@ -26,6 +26,7 @@ interface ProfilePageProps {
   favoriteCount: number;
   cartCount: number;
   productCount: number;
+  onNavigate: (tab: string) => void;
 }
 
 const EMPTY_FORM = {
@@ -86,6 +87,7 @@ export function ProfilePage({
   favoriteCount,
   cartCount,
   productCount,
+  onNavigate,
 }: ProfilePageProps) {
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -282,11 +284,17 @@ export function ProfilePage({
                 <div className="text-[10px] uppercase tracking-[0.18em] text-white/55">Katalog</div>
                 <div className="mt-1 text-2xl font-bold">{productCount}</div>
               </div>
-              <div className="rounded-2xl border border-white/12 bg-white/8 p-4 backdrop-blur-sm">
+              <div 
+                onClick={() => onNavigate("favorites")}
+                className="rounded-2xl border border-white/12 bg-white/8 p-4 backdrop-blur-sm cursor-pointer hover:bg-white/15 transition-all duration-150 active:scale-[0.97]"
+              >
                 <div className="text-[10px] uppercase tracking-[0.18em] text-white/55">Favori</div>
                 <div className="mt-1 text-2xl font-bold">{favoriteCount}</div>
               </div>
-              <div className="rounded-2xl border border-white/12 bg-white/8 p-4 backdrop-blur-sm">
+              <div 
+                onClick={() => onNavigate("cart")}
+                className="rounded-2xl border border-white/12 bg-white/8 p-4 backdrop-blur-sm cursor-pointer hover:bg-white/15 transition-all duration-150 active:scale-[0.97]"
+              >
                 <div className="text-[10px] uppercase tracking-[0.18em] text-white/55">Sepet</div>
                 <div className="mt-1 text-2xl font-bold">{cartCount}</div>
               </div>
@@ -330,18 +338,12 @@ export function ProfilePage({
                   <InfoChip label="Cilt Sorunu" value={selectedConcernNames.length > 0 ? selectedConcernNames.join(", ") : "Yok"} />
                 </div>
 
-                <div className="mt-6 flex flex-wrap gap-2">
+                <div className="mt-6">
                   <button
                     onClick={onSignOut}
-                    className="inline-flex items-center gap-2 rounded-xl border border-[#E0DED7] bg-white px-4 py-2.5 text-sm font-semibold text-[#444] transition-colors hover:bg-[#FAF9F5]"
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50/50 px-4 py-2.5 text-sm font-semibold text-red-600 transition-all duration-150 hover:bg-red-50 hover:text-red-700 active:scale-[0.98]"
                   >
-                    <Shield size={14} /> Çıkış Yap
-                  </button>
-                  <button
-                    onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#1B4332] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#153427]"
-                  >
-                    <RefreshCw size={14} /> Yukarı Git
+                    <LogOut size={14} /> Çıkış Yap
                   </button>
                 </div>
               </div>
@@ -521,11 +523,17 @@ export function ProfilePage({
               </section>
 
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-[24px] border border-[#E8E8E2] bg-white p-5 shadow-sm">
+                <div 
+                  onClick={() => onNavigate("favorites")}
+                  className="rounded-[24px] border border-[#E8E8E2] bg-white p-5 shadow-sm cursor-pointer transition-all duration-150 hover:scale-[1.02] hover:shadow-md hover:border-red-200 hover:bg-red-50/10 active:scale-[0.98]"
+                >
                   <div className="flex items-center gap-2 text-sm font-semibold text-[#1A1A1A]"><Heart size={15} className="text-[#FF7B7B]" /> Favori ürünler</div>
                   <div className="mt-3 text-3xl font-bold text-[#1A1A1A]">{favoriteCount}</div>
                 </div>
-                <div className="rounded-[24px] border border-[#E8E8E2] bg-white p-5 shadow-sm">
+                <div 
+                  onClick={() => onNavigate("cart")}
+                  className="rounded-[24px] border border-[#E8E8E2] bg-white p-5 shadow-sm cursor-pointer transition-all duration-150 hover:scale-[1.02] hover:shadow-md hover:border-green-200 hover:bg-green-50/10 active:scale-[0.98]"
+                >
                   <div className="flex items-center gap-2 text-sm font-semibold text-[#1A1A1A]"><ShoppingBag size={15} className="text-[#2D6A4F]" /> Sepet durumu</div>
                   <div className="mt-3 text-3xl font-bold text-[#1A1A1A]">{cartCount}</div>
                 </div>
