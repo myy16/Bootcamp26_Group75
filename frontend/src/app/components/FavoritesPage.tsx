@@ -1,16 +1,16 @@
 import { useState } from "react";
 import {
   Bell,
-  X,
+  BellOff,
+  Trash2,
   TrendingDown,
+  TrendingUp,
   ShoppingBag,
   LogIn,
-  ChevronRight,
+  ArrowRight,
 } from "lucide-react";
 import { PRODUCTS, STORE_COLORS, Product } from "../data";
 import { User } from "@supabase/supabase-js";
-
-const SIDEBAR_COLOR = "#1B4332";
 
 interface FavoritesPageProps {
   products?: Product[];
@@ -20,7 +20,6 @@ interface FavoritesPageProps {
   cartItemIds: Set<string>;
   user: User | null;
   onOpenLogin: () => void;
-  onOpenChart: (product: Product) => void;
 }
 
 function MiniPriceChart({
@@ -28,42 +27,140 @@ function MiniPriceChart({
 }: {
   history: { date: string; price: number }[];
 }) {
-  if (!history || history.length === 0) return null;
+  const validHistory = (history || []).filter(
+    (item) =>
+      Number.isFinite(Number(item.price)) && Number(item.price) > 0,
+  );
 
-  const prices = history.map((h) => h.price);
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
-  const range = max - min || 1; // 0'a bölünme hatasını önler
-  const w = 120,
-    h = 36;
+  if (validHistory.length === 0) {
+    return (
+      <div className="text-xs text-gray-400">
+        Geçerli fiyat geçmişi bulunmuyor.
+      </div>
+    );
+  }
 
-  const pts = prices.map((p, i) => {
+  const prices = validHistory.map((item) => Number(item.price));
+
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceRange = maxPrice - minPrice;
+  const chartRange = priceRange || 1;
+
+  const chartWidth = 145;
+  const chartHeight = 50;
+
+  const points = prices.map((price, index) => {
     const x =
-      prices.length > 1 ? (i / (prices.length - 1)) * w : w / 2;
-    const y = h - ((p - min) / range) * (h - 8) - 4;
+      prices.length > 1
+        ? (index / (prices.length - 1)) * chartWidth
+        : chartWidth / 2;
+
+    const y =
+      chartHeight -
+      ((price - minPrice) / chartRange) * (chartHeight - 12) -
+      6;
+
     return `${x},${y}`;
   });
 
-  const isDown = prices[prices.length - 1] < prices[0];
-  const color = isDown ? "#52B788" : "#E63946";
+  const firstPrice = prices[0];
+  const currentPrice = prices[prices.length - 1];
+  const netDifference = currentPrice - firstPrice;
+
+  const isDown = netDifference < -0.01;
+  const isUp = netDifference > 0.01;
+  const hasFluctuated = priceRange > 0.01;
+
+  const chartColor = isDown
+    ? "#2D6A4F"
+    : isUp
+      ? "#E63946"
+      : hasFluctuated
+        ? "#B8860B"
+        : "#8A8A84";
+
+  const statusText = isDown
+    ? `${Math.abs(netDifference).toFixed(2)} ₺ düştü`
+    : isUp
+      ? `${netDifference.toFixed(2)} ₺ arttı`
+      : hasFluctuated
+        ? `${priceRange.toFixed(2)} ₺ fiyat aralığı`
+        : "Fiyat sabit";
 
   return (
-    <svg width={w} height={h} className="overflow-visible">
-      {prices.length > 1 && (
-        <polyline
-          points={pts.join(" ")}
-          fill="none"
-          stroke={color}
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )}
-      {prices.map((p, i) => {
-        const [x, y] = pts[i].split(",").map(Number);
-        return <circle key={i} cx={x} cy={y} r={2} fill={color} />;
-      })}
-    </svg>
+    <div className="flex items-center justify-between gap-6">
+      <div className="flex min-w-0 items-center gap-5">
+        <svg
+          width={chartWidth}
+          height={chartHeight}
+          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          className="shrink-0 overflow-visible"
+        >
+          <line
+            x1="0"
+            y1={chartHeight - 4}
+            x2={chartWidth}
+            y2={chartHeight - 4}
+            stroke="#E8E8E2"
+            strokeWidth="1"
+          />
+
+          {prices.length > 1 && (
+            <polyline
+              points={points.join(" ")}
+              fill="none"
+              stroke={chartColor}
+              strokeWidth={2.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+
+          {prices.map((price, index) => {
+            const [x, y] = points[index].split(",").map(Number);
+
+            return (
+              <circle
+                key={`${price}-${index}`}
+                cx={x}
+                cy={y}
+                r={3}
+                fill={chartColor}
+              />
+            );
+          })}
+        </svg>
+
+        <div className="min-w-0">
+          <div
+            className="flex items-center gap-1.5 text-sm font-semibold"
+            style={{ color: chartColor }}
+          >
+            {isDown && <TrendingDown size={14} />}
+            {isUp && <TrendingUp size={14} />}
+            <span>{statusText}</span>
+          </div>
+
+          <div className="mt-1.5 text-[11px] text-gray-400">
+            Son {validHistory.length} geçerli fiyat kaydı
+          </div>
+
+          <div className="mt-1 text-[11px] text-gray-400">
+            En düşük {minPrice.toFixed(2)} ₺ · En yüksek{" "}
+            {maxPrice.toFixed(2)} ₺
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[#2D6A4F] transition-colors hover:text-[#1B4332]"
+      >
+        Analizi Gör
+        <ArrowRight size={14} />
+      </button>
+    </div>
   );
 }
 
@@ -75,42 +172,54 @@ export function FavoritesPage({
   cartItemIds,
   user,
   onOpenLogin,
-  onOpenChart,
 }: FavoritesPageProps) {
   const [notifications, setNotifications] = useState<Set<string>>(
     new Set(),
   );
+
   const source =
     products && products.length > 0 ? products : PRODUCTS;
-  const favorites = source.filter((p) => favoriteIds.has(p.id));
+
+  const favorites = source.filter((product) =>
+    favoriteIds.has(product.id),
+  );
 
   const toggleNotification = (id: string) => {
-    setNotifications((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
+    setNotifications((previousNotifications) => {
+      const updatedNotifications = new Set(previousNotifications);
+
+      if (updatedNotifications.has(id)) {
+        updatedNotifications.delete(id);
+      } else {
+        updatedNotifications.add(id);
+      }
+
+      return updatedNotifications;
     });
   };
 
-  // KULLANICI GİRİŞ YAPMAMIŞSA
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#F5F5F0] flex flex-col items-center justify-center p-6 font-sans">
-        <div className="bg-white p-10 rounded-2xl shadow-sm border border-[#E8E8E2] max-w-md w-full text-center flex flex-col items-center">
-          <div className="w-16 h-16 bg-[#F0F7F4] rounded-full flex items-center justify-center mb-6 text-[#2D6A4F]">
+      <div className="flex min-h-screen items-center justify-center bg-[#F5F5F0] p-6 font-sans">
+        <div className="flex w-full max-w-md flex-col items-center rounded-2xl border border-[#E8E8E2] bg-white p-10 text-center shadow-sm">
+          <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#F0F7F4] text-[#2D6A4F]">
             <Bell size={28} />
           </div>
-          <h2 className="text-xl font-bold text-[#1A1A1A] mb-2">
+
+          <h2 className="mb-2 text-xl font-bold text-[#1A1A1A]">
             Favorileriniz İçin Giriş Yapın
           </h2>
-          <p className="text-sm text-gray-500 mb-8 leading-relaxed">
-            Beğendiğiniz kozmetik ürünlerinin fiyat
-            düşüşlerinden anında haberdar olmak ve kişisel
-            listenize erişmek için oturum açmalısınız.
+
+          <p className="mb-8 text-sm leading-relaxed text-gray-500">
+            Beğendiğiniz kozmetik ürünlerinin fiyat düşüşlerinden
+            haberdar olmak ve kişisel favori listenize erişmek için
+            oturum açmalısınız.
           </p>
+
           <button
+            type="button"
             onClick={onOpenLogin}
-            className="w-full py-3.5 px-4 bg-[#1B4332] hover:bg-[#153427] text-white font-semibold rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1B4332] px-4 py-3.5 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[#153427]"
           >
             <LogIn size={18} />
             Giriş Yap / Kayıt Ol
@@ -120,222 +229,223 @@ export function FavoritesPage({
     );
   }
 
-  // KULLANICI GİRİŞ YAPMIŞSA
   return (
-    <div className="min-h-screen bg-[#F5F5F0] font-sans pb-10">
-      <div className="bg-white border-b border-[#E8E8E2] py-4 px-8 sticky top-0 z-10">
-        <h1 className="text-xl font-bold text-[#1A1A1A]">
+    <div className="min-h-screen bg-[#F5F5F0] pb-12 font-sans">
+      <header className="sticky top-0 z-10 border-b border-[#E8E8E2] bg-white px-10 py-6">
+        <h1 className="text-2xl font-bold text-[#1A1A1A]">
           Favorilerim
         </h1>
-        <p className="text-xs text-gray-500 mt-1">
-          {favorites.length} ürün kaydedildi · Fiyat
-          değişimlerini takip ediyorsun
-        </p>
-      </div>
 
-      <div className="p-8">
+        <p className="mt-1.5 text-sm text-gray-500">
+          {favorites.length} ürün kaydedildi · Beğendiğin ürünleri ve
+          fiyat değişimlerini buradan takip edebilirsin.
+        </p>
+      </header>
+
+      <main className="p-10">
         {favorites.length === 0 ? (
-          <div className="text-center py-20 px-5">
-            <div className="text-5xl text-gray-300 mb-4">♡</div>
-            <div className="text-lg font-semibold text-[#1A1A1A] mb-2">
+          <div className="rounded-2xl border border-dashed border-[#DADAD3] bg-white px-5 py-24 text-center">
+            <div className="mb-4 text-5xl text-gray-300">♡</div>
+
+            <div className="mb-2 text-xl font-semibold text-[#1A1A1A]">
               Henüz favori ürün yok
             </div>
+
             <div className="text-sm text-gray-500">
-              Ürün kartlarındaki kalp ikonuna tıklayarak
-              fiyatları takip et
+              Ürün kartlarındaki kalp ikonuna tıklayarak ürünleri
+              favorilerine ekleyebilirsin.
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-5">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(420px,1fr))] gap-8">
             {favorites.map((product) => {
               const validStores = (product.stores || []).filter(
-                (s) => s.price > 0,
+                (store) =>
+                  Number.isFinite(Number(store.price)) &&
+                  Number(store.price) > 0,
               );
-              const cheapest =
+
+              const cheapestStore =
                 validStores.length > 0
                   ? validStores.reduce(
-                      (min, s) =>
-                        s.price < min.price ? s : min,
+                      (cheapest, currentStore) =>
+                        Number(currentStore.price) <
+                        Number(cheapest.price)
+                          ? currentStore
+                          : cheapest,
                       validStores[0],
                     )
                   : null;
 
-              const storeColor = cheapest
-                ? STORE_COLORS[cheapest.name]
+              const storeColor = cheapestStore
+                ? STORE_COLORS[cheapestStore.name]
                 : STORE_COLORS.Mion;
 
               const history = (product.history || []).slice(-7);
-              const hasNotif = notifications.has(product.id);
-              const inCart = cartItemIds.has(product.id);
 
-              const priceAtAdded =
-                history.length > 0
-                  ? history[0].price
-                  : (cheapest?.price ?? 0);
-              const priceDiff = cheapest
-                ? priceAtAdded - cheapest.price
-                : 0;
+              const validHistory = history.filter(
+                (item) =>
+                  Number.isFinite(Number(item.price)) &&
+                  Number(item.price) > 0,
+              );
+
+              const hasNotification = notifications.has(product.id);
+              const isInCart = cartItemIds.has(product.id);
+
+              const firstHistoryPrice =
+                validHistory.length > 0
+                  ? Number(validHistory[0].price)
+                  : Number(cheapestStore?.price ?? 0);
+
+              const currentStorePrice = Number(
+                cheapestStore?.price ?? 0,
+              );
+
+              const priceDifference =
+                cheapestStore && firstHistoryPrice > currentStorePrice
+                  ? firstHistoryPrice - currentStorePrice
+                  : 0;
 
               return (
-                <div
+                <article
                   key={product.id}
-                  className="relative bg-white rounded-xl border-[1.5px] border-[#E8E8E2] shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col"
+                  className="flex min-h-[455px] flex-col overflow-hidden rounded-2xl border border-[#E4E4DE] bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
                 >
-                  {/* Sağ üst: Favorilerden kaldır (çarpı) */}
-                  <button
-                    onClick={() => onToggleFavorite(product.id)}
-                    title="Favorilerden kaldır"
-                    className="absolute top-2.5 right-2.5 z-10 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm border border-[#E8E8E2] flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-200 shadow-sm transition-colors"
-                  >
-                    <X size={15} />
-                  </button>
+                  <div className="flex p-5">
+                    <div className="flex h-[150px] w-[150px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#F7F7F4]">
+                      <img
+                        src={product.image}
+                        alt={product.title}
+                        className="h-full w-full object-contain p-2"
+                      />
+                    </div>
 
-                  <div className="flex">
-                    <img
-                      src={product.image}
-                      alt={product.title}
-                      className="w-[110px] h-[110px] object-cover shrink-0"
-                    />
-                    <div className="flex-1 p-3.5 pr-9 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-semibold text-[#2D6A4F] uppercase tracking-wide mb-1">
-                          {product.brand}
-                        </div>
-                        <div className="text-[13px] font-bold text-[#1A1A1A] leading-tight mb-2 line-clamp-2">
-                          {product.title}
-                        </div>
+                    <div className="ml-5 flex min-w-0 flex-1 flex-col">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-[#2D6A4F]">
+                        {product.brand}
+                      </div>
 
-                        <div className="flex items-center gap-2">
-                          {cheapest ? (
-                            <>
-                              <div
-                                className="text-lg font-bold"
+                      <h2 className="mt-2 line-clamp-2 text-[18px] font-bold leading-6 text-[#1A1A1A]">
+                        {product.title}
+                      </h2>
+
+                      <p className="mt-2 text-xs text-gray-400">
+                        {product.category}
+                      </p>
+
+                      <div className="mt-auto pt-4">
+                        {cheapestStore ? (
+                          <>
+                            <div className="flex items-end gap-3">
+                              <span
+                                className="text-[34px] font-bold leading-none"
                                 style={{
                                   color: storeColor.color,
                                 }}
                               >
-                                {cheapest.price} ₺
-                              </div>
-                              {priceDiff > 0 && (
-                                <div className="text-xs text-[#52B788] font-semibold flex items-center gap-1">
-                                  <TrendingDown size={11} />₺
-                                  {priceDiff.toFixed(2)} düştü
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <div className="text-sm font-medium text-gray-400">
-                              Şu an stokta/fiyat yok
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                                {Number(
+                                  cheapestStore.price,
+                                ).toFixed(2)}{" "}
+                                ₺
+                              </span>
 
-                      <div className="flex items-center gap-2 mt-2">
-                        {cheapest && (
-                          <div
-                            className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                            style={{
-                              background: storeColor.light,
-                              color: storeColor.color,
-                            }}
-                          >
-                            {cheapest.name} · En Ucuz
+                              {priceDifference > 0.01 && (
+                                <span className="mb-1 flex items-center gap-1 text-xs font-semibold text-[#2D6A4F]">
+                                  <TrendingDown size={13} />
+                                  {priceDifference.toFixed(2)} ₺
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="mt-3 flex items-center gap-2">
+                              <span className="text-xs text-gray-400">
+                                En uygun fiyat
+                              </span>
+
+                              <span
+                                className="rounded-full px-2.5 py-1 text-xs font-semibold"
+                                style={{
+                                  backgroundColor: storeColor.light,
+                                  color: storeColor.color,
+                                }}
+                              >
+                                {cheapestStore.name}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-sm font-medium text-gray-400">
+                            Şu anda fiyat bilgisi bulunmuyor
                           </div>
                         )}
-                        <div className="text-[10px] text-gray-400">
-                          {product.category}
-                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Fiyat Değişim Alanı */}
-                  {history.length > 0 && (
-                    <div className="px-4 py-3 border-t border-[#F0F0EC] bg-gray-50/50">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="text-md font-semibold text-gray-600">
-                          Fiyat Değişimi
-                        </div>
-                        <button
-                          onClick={() => onOpenChart(product)}
-                          className="flex items-center gap-0.5 text-[11px] font-semibold hover:opacity-80 transition-opacity"
-                          style={{ color: SIDEBAR_COLOR }}
-                        >
-                          Fiyat analizini detaylı gör
-                          <ChevronRight size={13} />
-                        </button>
+                  {validHistory.length > 0 && (
+                    <div className="border-t border-[#EFEFEA] bg-[#FAFAF7] px-6 py-5">
+                      <div className="mb-4 text-xs font-semibold text-gray-500">
+                        Fiyat Geçmişi
                       </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <MiniPriceChart history={history} />
-                        <div className="text-right">
-                          <div className="text-[10px] text-gray-400">
-                            Eklendiğinde
-                          </div>
-                          <div className="text-[13px] font-bold text-[#1A1A1A]">
-                            ₺{priceAtAdded.toFixed(2)}
-                          </div>
-                          <div
-                            className="text-[10px] font-semibold"
-                            style={{
-                              color:
-                                priceDiff > 0
-                                  ? "#52B788"
-                                  : priceDiff < 0
-                                    ? "#E63946"
-                                    : "#999",
-                            }}
-                          >
-                            {priceDiff > 0
-                              ? `₺${priceDiff.toFixed(2)} düştü`
-                              : priceDiff < 0
-                                ? `₺${Math.abs(priceDiff).toFixed(2)} arttı`
-                                : "Fiyat sabit"}
-                          </div>
-                        </div>
-                      </div>
+
+                      <MiniPriceChart history={validHistory} />
                     </div>
                   )}
 
-                  {/* Aksiyon butonları */}
-                  <div className="p-3 border-t border-[#F0F0EC] flex gap-2 mt-auto">
+                  <div className="mt-auto flex gap-3 border-t border-[#EFEFEA] p-4">
                     <button
+                      type="button"
                       onClick={() => onAddToCart(product)}
-                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
-                        inCart
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors ${
+                        isInCart
                           ? "bg-[#EBF5F0] text-[#2D6A4F]"
                           : "bg-[#2D6A4F] text-white hover:bg-[#1B4332]"
                       }`}
                     >
-                      <ShoppingBag size={13} />
-                      {inCart ? "Sepette" : "Sepete Ekle"}
+                      <ShoppingBag size={16} />
+                      {isInCart ? "Sepette" : "Sepete Ekle"}
                     </button>
+
                     <button
-                      onClick={() => toggleNotification(product.id)}
+                      type="button"
                       title={
-                        hasNotif
-                          ? "Alarm kurulu"
-                          : "Fiyat alarmı kur"
+                        hasNotification
+                          ? "Fiyat alarmını kapat"
+                          : "Fiyat alarmını aç"
                       }
-                      className={`flex items-center justify-center gap-1.5 py-2 px-3.5 rounded-lg border-[1.5px] text-xs font-medium transition-colors ${
-                        hasNotif
+                      onClick={() =>
+                        toggleNotification(product.id)
+                      }
+                      className={`flex items-center justify-center rounded-xl border px-4 py-3 transition-colors ${
+                        hasNotification
                           ? "border-[#2D6A4F] bg-[#EBF5F0] text-[#2D6A4F]"
-                          : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                          : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
                       }`}
                     >
-                      <Bell
-                        size={14}
-                        className={hasNotif ? "fill-[#2D6A4F]" : ""}
-                      />
-                      {hasNotif ? "Alarm Kurulu" : "Alarm Kur"}
+                      {hasNotification ? (
+                        <Bell size={17} />
+                      ) : (
+                        <BellOff size={17} />
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      title="Favorilerden kaldır"
+                      onClick={() =>
+                        onToggleFavorite(product.id)
+                      }
+                      className="flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-400 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500"
+                    >
+                      <Trash2 size={17} />
                     </button>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
