@@ -254,7 +254,7 @@ Sprint 2 sonunda tamamlanmamış veya doğrulama süreci devam eden işler Sprin
 
 - **Sprint board update**: Sprint board screenshotları:
 
-<img width="410" height="709" alt="1" src="https://github.com/user-attachments/assets/cb379b2a-ebfc-4ded-93f9-aa5cdf07b0c7" />
+<img width="1671" height="820" alt="Ekran görüntüsü 2026-07-22 143955" src="https://github.com/user-attachments/assets/68182523-fbfa-497e-957a-43eafda5f7cd" />
 <img width="1694" height="818" alt="2" src="https://github.com/user-attachments/assets/9d104984-7e75-41c7-9745-c66b2f21e147" />
 <img width="1705" height="813" alt="3" src="https://github.com/user-attachments/assets/9982e8a7-24e9-43fe-a094-16591d7f309c" />
 <img width="1700" height="826" alt="4" src="https://github.com/user-attachments/assets/14c45a4e-d612-43ea-b9ca-2d76da3a8d36" />
