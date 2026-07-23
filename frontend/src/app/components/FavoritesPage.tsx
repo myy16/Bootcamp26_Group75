@@ -1,8 +1,7 @@
 import { useState } from "react";
 import {
   Bell,
-  BellOff,
-  Trash2,
+  X,
   TrendingDown,
   TrendingUp,
   ShoppingBag,
@@ -17,11 +16,13 @@ interface FavoritesPageProps {
   favoriteIds: Set<string>;
   onToggleFavorite: (id: string) => void;
   onAddToCart: (product: Product) => void;
+  onOpenChart: (product: Product) => void;
   cartItemIds: Set<string>;
   user: User | null;
   onOpenLogin: () => void;
 }
 
+// ESKİ VERSİYONDAKİ GİBİ: Sadece grafiği ve metinleri çizer, buton burada yok!
 function MiniPriceChart({
   history,
 }: {
@@ -89,77 +90,62 @@ function MiniPriceChart({
         : "Fiyat sabit";
 
   return (
-    <div className="flex items-center justify-between gap-6">
-      <div className="flex min-w-0 items-center gap-5">
-        <svg
-          width={chartWidth}
-          height={chartHeight}
-          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-          className="shrink-0 overflow-visible"
-        >
-          <line
-            x1="0"
-            y1={chartHeight - 4}
-            x2={chartWidth}
-            y2={chartHeight - 4}
-            stroke="#E8E8E2"
-            strokeWidth="1"
-          />
-
-          {prices.length > 1 && (
-            <polyline
-              points={points.join(" ")}
-              fill="none"
-              stroke={chartColor}
-              strokeWidth={2.8}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          )}
-
-          {prices.map((price, index) => {
-            const [x, y] = points[index].split(",").map(Number);
-
-            return (
-              <circle
-                key={`${price}-${index}`}
-                cx={x}
-                cy={y}
-                r={3}
-                fill={chartColor}
-              />
-            );
-          })}
-        </svg>
-
-        <div className="min-w-0">
-          <div
-            className="flex items-center gap-1.5 text-sm font-semibold"
-            style={{ color: chartColor }}
-          >
-            {isDown && <TrendingDown size={14} />}
-            {isUp && <TrendingUp size={14} />}
-            <span>{statusText}</span>
-          </div>
-
-          <div className="mt-1.5 text-[11px] text-gray-400">
-            Son {validHistory.length} geçerli fiyat kaydı
-          </div>
-
-          <div className="mt-1 text-[11px] text-gray-400">
-            En düşük {minPrice.toFixed(2)} ₺ · En yüksek{" "}
-            {maxPrice.toFixed(2)} ₺
-          </div>
-        </div>
-      </div>
-
-      <button
-        type="button"
-        className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[#2D6A4F] transition-colors hover:text-[#1B4332]"
+    <div className="flex min-w-0 items-center gap-5">
+      <svg
+        width={chartWidth}
+        height={chartHeight}
+        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+        className="shrink-0 overflow-visible"
       >
-        Analizi Gör
-        <ArrowRight size={14} />
-      </button>
+        <line
+          x1="0"
+          y1={chartHeight - 4}
+          x2={chartWidth}
+          y2={chartHeight - 4}
+          stroke="#E8E8E2"
+          strokeWidth="1"
+        />
+
+        {prices.length > 1 && (
+          <polyline
+            points={points.join(" ")}
+            fill="none"
+            stroke={chartColor}
+            strokeWidth={2.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+
+        {prices.map((price, index) => {
+          const [x, y] = points[index].split(",").map(Number);
+
+          return (
+            <circle
+              key={`${price}-${index}`}
+              cx={x}
+              cy={y}
+              r={3}
+              fill={chartColor}
+            />
+          );
+        })}
+      </svg>
+
+      <div className="min-w-0">
+        <div
+          className="flex items-center gap-1.5 text-sm font-semibold"
+          style={{ color: chartColor }}
+        >
+          {isDown && <TrendingDown size={14} />}
+          {isUp && <TrendingUp size={14} />}
+          {/* <span>{statusText}</span> */}
+        </div>
+
+       
+
+        
+      </div>
     </div>
   );
 }
@@ -172,6 +158,7 @@ export function FavoritesPage({
   cartItemIds,
   user,
   onOpenLogin,
+  onOpenChart,
 }: FavoritesPageProps) {
   const [notifications, setNotifications] = useState<Set<string>>(
     new Set(),
@@ -257,7 +244,7 @@ export function FavoritesPage({
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(420px,1fr))] gap-8">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(380px,1fr))] gap-8">
             {favorites.map((product) => {
               const validStores = (product.stores || []).filter(
                 (store) =>
@@ -309,10 +296,18 @@ export function FavoritesPage({
               return (
                 <article
                   key={product.id}
-                  className="flex min-h-[455px] flex-col overflow-hidden rounded-2xl border border-[#E4E4DE] bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
+                  className="relative flex min-h-[400px] flex-col overflow-hidden rounded-2xl border border-[#E4E4DE] bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
                 >
+                  <button
+                    onClick={() => onToggleFavorite(product.id)}
+                    title="Favorilerden kaldır"
+                    className="absolute top-2.5 right-2.5 z-10 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm border border-[#E8E8E2] flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-200 shadow-sm transition-colors"
+                  >
+                    <X size={15} />
+                  </button>
+                  
                   <div className="flex p-5">
-                    <div className="flex h-[150px] w-[150px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#F7F7F4]">
+                    <div className="flex h-[150px] w-[150px] shrink-0 items-center justify-center overflow-hidden rounded-xl">
                       <img
                         src={product.image}
                         alt={product.title}
@@ -383,16 +378,30 @@ export function FavoritesPage({
                   </div>
 
                   {validHistory.length > 0 && (
-                    <div className="border-t border-[#EFEFEA] bg-[#FAFAF7] px-6 py-5">
-                      <div className="mb-4 text-xs font-semibold text-gray-500">
-                        Fiyat Geçmişi
+                    <div className="border-t border-[#EFEFEA] bg-[#FAFAF7] flex items-center justify-between px-6 py-5">
+
+                      <div className="flex flex-col gap-5">
+                        <span className="text-xs font-semibold text-gray-500">
+                          Fiyat Geçmişi
+                        </span>
+                        <MiniPriceChart history={validHistory} />
                       </div>
 
-                      <MiniPriceChart history={validHistory} />
+                      <div className="flex items-center justify-between">
+                        
+                        <button
+                          onClick={() => onOpenChart(product)}
+                          type="button"
+                          className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[#2D6A4F] transition-colors hover:text-[#1B4332]"
+                        >
+                          Analizi Gör
+                          <ArrowRight size={13} />
+                        </button>
+                      </div>                    
                     </div>
                   )}
 
-                  <div className="mt-auto flex gap-3 border-t border-[#EFEFEA] p-4">
+                  <div className=" flex gap-3 border-t border-[#EFEFEA] p-4">
                     <button
                       type="button"
                       onClick={() => onAddToCart(product)}
@@ -407,37 +416,23 @@ export function FavoritesPage({
                     </button>
 
                     <button
-                      type="button"
+                      onClick={() => toggleNotification?.(product.id)}
                       title={
                         hasNotification
-                          ? "Fiyat alarmını kapat"
-                          : "Fiyat alarmını aç"
+                          ? "Alarm kurulu"
+                          : "Fiyat alarmı kur"
                       }
-                      onClick={() =>
-                        toggleNotification(product.id)
-                      }
-                      className={`flex items-center justify-center rounded-xl border px-4 py-3 transition-colors ${
+                      className={`flex items-center justify-center gap-1.5 py-2 px-3.5 rounded-lg border-[1.5px] text-xs font-medium transition-colors ${
                         hasNotification
                           ? "border-[#2D6A4F] bg-[#EBF5F0] text-[#2D6A4F]"
-                          : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
+                          : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
                       }`}
                     >
-                      {hasNotification ? (
-                        <Bell size={17} />
-                      ) : (
-                        <BellOff size={17} />
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      title="Favorilerden kaldır"
-                      onClick={() =>
-                        onToggleFavorite(product.id)
-                      }
-                      className="flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-400 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500"
-                    >
-                      <Trash2 size={17} />
+                      <Bell
+                        size={14}
+                        className={hasNotification ? "fill-[#2D6A4F]" : ""}
+                      />
+                      {hasNotification ? "Alarm Kurulu" : "Alarm Kur"}
                     </button>
                   </div>
                 </article>
