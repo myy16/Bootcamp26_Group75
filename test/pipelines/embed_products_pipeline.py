@@ -5,12 +5,118 @@ import json
 import time
 import argparse
 import re
+import requests
 from dotenv import load_dotenv
 from supabase import create_client
 from openai import OpenAI
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from duckduckgo_search import DDGS
+
+def search_product_on_tavily(brand_name: str, product_name: str, category_name: str) -> str:
+    """
+    Searches the web using Tavily Search API for the product description and ingredients list.
+    Returns the aggregated text results to be analyzed by LLM.
+    """
+    api_key = os.getenv("TAVILY_API_KEY")
+    if not api_key:
+        return None
+        
+    clean_p_name = re.sub(r'\s*\d+\s*(ml|gr|g|lt|oz)\b', '', product_name, flags=re.IGNORECASE)
+    query = f"{brand_name} {clean_p_name} içindekiler ingredients"
+    print(f"  [Tavily Search] Searching web for: {query}...")
+    
+    url = "https://api.tavily.com/search"
+    payload = {
+        "api_key": api_key,
+        "query": query,
+        "search_depth": "advanced",
+        "include_answer": False,
+        "include_images": False,
+        "max_results": 4
+    }
+    
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            results = []
+            for r in data.get("results", []):
+                title = r.get("title", "")
+                content = r.get("content", "")
+                results.append(f"Başlık: {title}\nİçerik: {content}")
+            if results:
+                print(f"  [Tavily Search] Found {len(results)} search results for query: '{query}'")
+                return "\n\n".join(results)
+        else:
+            print(f"  [Tavily Search] API returned status code {response.status_code}: {response.text}")
+    except Exception as e:
+        print(f"  [Tavily Search] Request failed: {e}")
+        
+    return None
+
+def search_product_on_web(brand_name: str, product_name: str, category_name: str) -> str:
+    """
+    Tries Tavily Search first if TAVILY_API_KEY is configured.
+    If Tavily fails or is not configured, falls back to DuckDuckGo search.
+    """
+    api_key = os.getenv("TAVILY_API_KEY")
+    if api_key:
+        tavily_results = search_product_on_tavily(brand_name, product_name, category_name)
+        if tavily_results:
+            return tavily_results
+        print("  [Tavily Fallback] Tavily search returned nothing. Falling back to DuckDuckGo...")
+
+    # Fallback to DuckDuckGo search
+    # Clean product name from common size details to improve search hit rate
+    clean_p_name = re.sub(r'\s*\d+\s*(ml|gr|g|lt|oz)\b', '', product_name, flags=re.IGNORECASE)
+    
+    # Try different search queries from specific to broad
+    queries = [
+        f"{brand_name} {clean_p_name} içindekiler",
+        f"{brand_name} {clean_p_name} ingredients",
+        f"{brand_name} {clean_p_name}"
+    ]
+    
+    for query in queries:
+        print(f"  [DuckDuckGo Search] Searching web for: {query}...")
+        try:
+            results = []
+            with DDGS() as ddgs:
+                # Fetch top 4 text search results
+                for r in ddgs.text(query, max_results=4):
+                    title = r.get("title", "")
+                    body = r.get("body", "")
+                    results.append(f"Başlık: {title}\nİçerik: {body}")
+            
+            if results:
+                print(f"  [DuckDuckGo Search] Found {len(results)} search results for query: '{query}'")
+                return "\n\n".join(results)
+        except Exception as e:
+            print(f"  [DuckDuckGo Search] Search failed for query '{query}': {e}")
+            time.sleep(1)
+            
+    return None
+
+def is_valid_metadata(m: dict) -> bool:
+    """
+    Checks if extracted metadata contains actual useful description and ingredients information,
+    and not just generic 'not found' placeholder messages.
+    """
+    if not m:
+        return False
+    desc = m.get("description", "").strip()
+    ingred = m.get("ingredients", "").strip()
+    
+    # Check if they are just "not found" or similar placeholders
+    desc_not_found = not desc or "bulunamadı" in desc.lower() or desc == "Bilinmiyor"
+    ingred_not_found = not ingred or "bulunamadı" in ingred.lower() or ingred == "Bilinmiyor"
+    
+    # If both are missing/not found, then metadata is not valid
+    if desc_not_found and ingred_not_found:
+        return False
+    return True
 
 # Force UTF-8 stdout encoding to prevent Windows charmap encoding errors
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -181,6 +287,21 @@ def main():
                 exit(1)
 
 def get_driver():
+    # Clean stale lock files from webdriver-manager to prevent lock timeouts on Windows
+    try:
+        wdm_dir = os.path.expanduser("~/.wdm")
+        if os.path.exists(wdm_dir):
+            for f in os.listdir(wdm_dir):
+                if f.startswith(".wdm-lock"):
+                    lock_file = os.path.join(wdm_dir, f)
+                    try:
+                        os.remove(lock_file)
+                        print(f"  [Init] Removed stale wdm lock file: {lock_file}")
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
     options = webdriver.ChromeOptions()
     options.add_argument("--start-maximized")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
@@ -317,12 +438,23 @@ def main():
             if scraped_successfully and page_text:
                 print("  Extracting real description and ingredients using LLM...")
                 extracted = extract_metadata_from_raw_html(page_text, p_name, cat_name)
-                if extracted:
+                if is_valid_metadata(extracted):
                     metadata = extracted
 
-            # If scraping or extraction failed, fallback to name-category document
-            if not metadata:
-                print("  [Fallback] Using name and category metadata document.")
+            # Stage 2: Web Search Fallback (if official page scrape or extraction failed)
+            if not is_valid_metadata(metadata):
+                print("  [Stage 2 Fallback] Scrape failed, returned empty, or could not find details. Searching web for product details...")
+                search_snippets = search_product_on_web(brand_name, p_name, cat_name)
+                if search_snippets:
+                    print("  Extracting description and ingredients from web search results using LLM...")
+                    extracted = extract_metadata_from_raw_html(search_snippets, p_name, cat_name)
+                    if is_valid_metadata(extracted):
+                        metadata = extracted
+                        print("  [Stage 2 Fallback] Successfully extracted details from web search.")
+
+            # Stage 3: Static Fallback (if both official page scrape and web search failed to find valid details)
+            if not is_valid_metadata(metadata):
+                print("  [Stage 3 Fallback] Both scraping and web search failed to find valid details. Using name and category template.")
                 metadata = {
                     "description": f"Bu ürün {brand_name} markasına ait {p_name} isimli {cat_name} ürünüdür.",
                     "ingredients": "Metinden bulunamadı",
@@ -348,12 +480,18 @@ def main():
                 print("  Embedding generation failed.")
                 continue
 
-            # Step D: Save embedding back to Supabase (with retry logic)
-            print("  Writing embedding to Supabase...")
+            # Step D: Save embedding and product details back to Supabase (with retry logic)
+            print("  Writing embedding and product details to Supabase...")
             updated = False
+            update_data = {
+                "embedding": vector,
+                "description": metadata.get("description", ""),
+                "ingredients": metadata.get("ingredients", ""),
+                "suitable_for": metadata.get("suitable_for", "")
+            }
             for attempt in range(1, 4):
                 try:
-                    update_res = sb.table("products").update({"embedding": vector}).eq("id", p_id).execute()
+                    update_res = sb.table("products").update(update_data).eq("id", p_id).execute()
                     if update_res.data:
                         print(f"  Successfully updated product id={p_id} (Attempt {attempt})")
                         success_count += 1

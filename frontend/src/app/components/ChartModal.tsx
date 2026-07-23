@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactECharts from "echarts-for-react";
-import { X, ArrowDown, ArrowUp } from "lucide-react";
+import { X, ArrowDown, ArrowUp, BookOpen, FlaskConical, Target, TrendingUp, Info } from "lucide-react";
 import { supabase } from "../supabase";
 import { STORE_COLORS, StoreName } from "../data";
 
@@ -76,6 +76,12 @@ export function ChartModal({
   const [logs, setLogs] = useState<PriceLogRow[]>([]);
   const [predictions, setPredictions] = useState<PredictionRow[]>([]);
   const [range, setRange] = useState<RangeKey>("F15");
+  const [activeTab, setActiveTab] = useState<"price" | "description" | "ingredients">("price");
+  const [productDetails, setProductDetails] = useState<{
+    description: string;
+    ingredients: string;
+    suitable_for: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!isOpen || !productId || !supabase) return;
@@ -84,6 +90,8 @@ export function ChartModal({
       setLoading(true);
       try {
         const pid = Number(productId);
+        
+        // Fetch logs and predictions
         const [logRes, predRes] = await Promise.all([
           supabase!
             .from("price_log")
@@ -100,10 +108,28 @@ export function ChartModal({
 
         setLogs((logRes.data as PriceLogRow[]) || []);
         setPredictions((predRes.data as PredictionRow[]) || []);
+
+        // Safely fetch product details (handles database exceptions gracefully if columns do not exist yet)
+        let prodDetails = null;
+        try {
+          const prodRes = await supabase!
+            .from("products")
+            .select("description, ingredients, suitable_for")
+            .eq("id", pid)
+            .maybeSingle();
+          if (prodRes && prodRes.data) {
+            prodDetails = prodRes.data;
+          }
+        } catch (prodErr) {
+          console.warn("Product details not available (migration pending?):", prodErr);
+        }
+        setProductDetails(prodDetails);
+
       } catch (err) {
         console.error("Fiyat geçmişi çekilirken hata:", err);
         setLogs([]);
         setPredictions([]);
+        setProductDetails(null);
       } finally {
         setLoading(false);
       }
@@ -349,141 +375,247 @@ export function ChartModal({
         {/* Başlık */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E8E2] bg-[#1B4332]">
           <h2 className="text-base font-bold text-white pr-4 line-clamp-1">
-            {productTitle || "Ürün"} Fiyat Analizi
+            {productTitle || "Ürün"} Detay & Analiz
           </h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition-colors shrink-0"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-white/10 hover:text-white transition-colors shrink-0"
           >
             <X size={20} />
           </button>
         </div>
 
+        {/* Tab Bar */}
+        <div className="flex border-b border-[#E8E8E2] bg-[#F5F5F0]">
+          <button
+            onClick={() => setActiveTab("price")}
+            className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-[13.5px] font-semibold transition-all border-b-2 ${
+              activeTab === "price"
+                ? "border-[#1B4332] text-[#1B4332] bg-white font-bold"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-white/40"
+            }`}
+          >
+            <TrendingUp size={15} /> Fiyat Analizi
+          </button>
+          <button
+            onClick={() => setActiveTab("description")}
+            className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-[13.5px] font-semibold transition-all border-b-2 ${
+              activeTab === "description"
+                ? "border-[#1B4332] text-[#1B4332] bg-white font-bold"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-white/40"
+            }`}
+          >
+            <BookOpen size={15} /> Ürün Açıklaması
+          </button>
+          <button
+            onClick={() => setActiveTab("ingredients")}
+            className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-[13.5px] font-semibold transition-all border-b-2 ${
+              activeTab === "ingredients"
+                ? "border-[#1B4332] text-[#1B4332] bg-white font-bold"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-white/40"
+            }`}
+          >
+            <FlaskConical size={15} /> İçindekiler (Bileşenler)
+          </button>
+        </div>
+
         <div className="p-6">
-    
-
-          {/* Aralık butonları */}
-          <div className="flex flex-wrap items-center justify-center gap-2 mb-5">
-            {RANGES.map((r) => {
-              const active = range === r.key;
-              return (
-                <button
-                  key={r.key}
-                  onClick={() => setRange(r.key)}
-                  className={`px-4 py-2 rounded-lg border text-[13px] font-medium transition-colors ${
-                    active
-                      ? "border-[#2D6A4F] text-[#2D6A4F] bg-[#EBF5F0]"
-                      : "border-[#E0E0DA] text-[#666] bg-white hover:bg-gray-50"
-                  }`}
-                >
-                  {r.label}
-                </button>
-              );
-            })}
-          </div>
-
           {loading ? (
-            <div className="h-[320px] flex items-center justify-center text-sm text-gray-400">
-              Fiyat geçmişi yükleniyor...
+            <div className="h-[320px] flex items-center justify-center text-sm text-gray-400 animate-pulse">
+              Yükleniyor...
             </div>
-          ) : !hasData ? (
-            <div className="h-[320px] flex items-center justify-center text-sm text-gray-400 text-center px-6">
-              Bu ürün için henüz yeterli fiyat geçmişi veya tahmin
-              verisi bulunmuyor.
-            </div>
-          ) : (
-            <ReactECharts
-              option={option}
-              style={{ height: 340, width: "100%" }}
-              notMerge
-            />
-          )}
-
-          {/* Özet: dönem içi en düşük / en yüksek fiyat (yan yana) */}
-          {hasData && periodMin > 0 && (
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-3 bg-[#F5F5F0] rounded-xl p-3.5">
-                <div className="w-9 h-9 rounded-full bg-[#EBF5F0] flex items-center justify-center shrink-0">
-                  <ArrowDown size={18} className="text-[#52B788]" />
-                </div>
-                <div>
-                  <div className="text-[11px] text-gray-500">
-                    Dönem içi en düşük
-                  </div>
-                  <div className="text-[16px] font-bold text-[#1A1A1A]">
-                    {fmtTL(periodMin)}
-                  </div>
-                </div>
+          ) : activeTab === "price" ? (
+            // --- FIYAT ANALIZI TABI ---
+            <div className="space-y-6">
+              {/* Aralık butonları */}
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {RANGES.map((r) => {
+                  const active = range === r.key;
+                  return (
+                    <button
+                      key={r.key}
+                      onClick={() => setRange(r.key)}
+                      className={`px-4 py-2 rounded-lg border text-[13px] font-medium transition-colors ${
+                        active
+                          ? "border-[#2D6A4F] text-[#2D6A4F] bg-[#EBF5F0]"
+                          : "border-[#E0E0DA] text-[#666] bg-white hover:bg-gray-50"
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="flex items-center gap-3 bg-[#F5F5F0] rounded-xl p-3.5">
-                <div className="w-9 h-9 rounded-full bg-[#FDECEC] flex items-center justify-center shrink-0">
-                  <ArrowUp size={18} className="text-[#E63946]" />
+              {!hasData ? (
+                <div className="h-[300px] flex items-center justify-center text-sm text-gray-400 text-center px-6">
+                  Bu ürün için henüz yeterli fiyat geçmişi veya tahmin verisi bulunmuyor.
                 </div>
-                <div>
-                  <div className="text-[11px] text-gray-500">
-                    Dönem içi en yüksek
-                  </div>
-                  <div className="text-[16px] font-bold text-[#1A1A1A]">
-                    {fmtTL(periodMax)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+              ) : (
+                <>
+                  <ReactECharts
+                    option={option}
+                    style={{ height: 340, width: "100%" }}
+                    notMerge
+                  />
 
-          {/* Tahmin içgörüleri (insight_text, signal, confidence) */}
-          {hasData && predictionInsights.length > 0 && (
-            <div className="mt-8 space-y-2.5">
-              <div className="text-[13px] font-bold text-[#1A1A1A]">
-                Yapay Zeka Tahmini
-              </div>
-              {predictionInsights.map((p) => {
-                const storeColor =
-                  STORE_COLORS[p.store as StoreName]?.color ||
-                  STORE_COLORS.Mion.color;
-                const sig =
-                  (p.signal && SIGNAL_LABELS[p.signal]) ||
-                  SIGNAL_LABELS.stable;
-                return (
-                  <div
-                    key={p.store}
-                    className="bg-[#F5F5F0] rounded-xl p-3.5"
-                  >
-                    <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ background: storeColor }}
-                        />
-                        <span className="text-[13px] font-bold text-[#1A1A1A]">
-                          {p.store}
-                        </span>
+                  {/* Özet: dönem içi en düşük / en yüksek fiyat (yan yana) */}
+                  {periodMin > 0 && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-center gap-3 bg-[#F5F5F0] rounded-xl p-3.5">
+                        <div className="w-9 h-9 rounded-full bg-[#EBF5F0] flex items-center justify-center shrink-0">
+                          <ArrowDown size={18} className="text-[#52B788]" />
+                        </div>
+                        <div>
+                          <div className="text-[11px] text-gray-500">Dönem içi en düşük</div>
+                          <div className="text-[16px] font-bold text-[#1A1A1A]">{fmtTL(periodMin)}</div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                          style={{
-                            background: sig.bg,
-                            color: sig.color,
-                          }}
-                        >
-                          {sig.label}
-                        </span>
-                        {p.confidence != null && (
-                          <span className="text-[10px] font-semibold text-gray-500">
-                            Güven: %
-                            {Number(p.confidence).toFixed(0)}
-                          </span>
-                        )}
+
+                      <div className="flex items-center gap-3 bg-[#F5F5F0] rounded-xl p-3.5">
+                        <div className="w-9 h-9 rounded-full bg-[#FDECEC] flex items-center justify-center shrink-0">
+                          <ArrowUp size={18} className="text-[#E63946]" />
+                        </div>
+                        <div>
+                          <div className="text-[11px] text-gray-500">Dönem içi en yüksek</div>
+                          <div className="text-[16px] font-bold text-[#1A1A1A]">{fmtTL(periodMax)}</div>
+                        </div>
                       </div>
                     </div>
-                    <p className="text-[12px] text-gray-600 leading-relaxed">
-                      {p.insight}
+                  )}
+
+                  {/* Tahmin içgörüleri (insight_text, signal, confidence) */}
+                  {predictionInsights.length > 0 && (
+                    <div className="space-y-2.5 pt-2">
+                      <div className="text-[13px] font-bold text-[#1A1A1A]">Yapay Zeka Tahmini</div>
+                      {predictionInsights.map((p) => {
+                        const storeColor =
+                          STORE_COLORS[p.store as StoreName]?.color || STORE_COLORS.Mion.color;
+                        const sig =
+                          (p.signal && SIGNAL_LABELS[p.signal]) || SIGNAL_LABELS.stable;
+                        return (
+                          <div key={p.store} className="bg-[#F5F5F0] rounded-xl p-3.5">
+                            <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                                  style={{ background: storeColor }}
+                                />
+                                <span className="text-[13px] font-bold text-[#1A1A1A]">{p.store}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                  style={{ background: sig.bg, color: sig.color }}
+                                >
+                                  {sig.label}
+                                </span>
+                                {p.confidence != null && (
+                                  <span className="text-[10px] font-semibold text-gray-500">
+                                    Güven: %{Number(p.confidence).toFixed(0)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-[12px] text-gray-600 leading-relaxed">{p.insight}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ) : activeTab === "description" ? (
+            // --- URUN ACIKLAMASI TABI ---
+            <div className="space-y-5">
+              {productDetails && (productDetails.description || productDetails.suitable_for) ? (
+                <>
+                  {/* Cilt Tipi & Bilgi Doğruluğu Kartı */}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-[#E8E8E2] bg-[#F4FAF6] p-4 flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-[#EBF5F0] text-[#2D6A4F] flex items-center justify-center shrink-0">
+                        <Target size={20} />
+                      </div>
+                      <div>
+                        <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-[#2D6A4F]">Hedef Cilt / Saç Tipi</h3>
+                        <p className="mt-1.5 text-sm font-semibold text-[#1A1A1A]">
+                          {productDetails.suitable_for && productDetails.suitable_for !== "Bilinmiyor" && productDetails.suitable_for !== "Metinden çıkarılan cilt/saç tipi bilgisi..."
+                            ? productDetails.suitable_for
+                            : "Tüm Cilt Tiplerine Uygun"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-[#E8E8E2] bg-[#FAF9F5] p-4 flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+                        <Info size={20} />
+                      </div>
+                      <div>
+                        <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-amber-800">Bilgi Doğruluğu</h3>
+                        <p className="mt-1.5 text-[12px] leading-relaxed text-gray-600">
+                          Detay sayfalarından kazınıp yapay zekayla ayıklanmıştır.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Açıklama İçerik Kartı */}
+                  <div className="rounded-2xl border border-[#E8E8E2] bg-white p-5 shadow-sm space-y-3">
+                    <h3 className="text-[13px] font-bold text-[#1A1A1A] flex items-center gap-2 border-b border-[#F0F0EC] pb-2">
+                      <BookOpen size={16} className="text-[#2D6A4F]" /> Resmi Ürün Açıklaması
+                    </h3>
+                    <p className="text-sm leading-6 text-gray-600 font-normal">
+                      {productDetails.description && productDetails.description !== "Metinden çıkarılan açıklama......"
+                        ? productDetails.description
+                        : "Resmi açıklama metninde bulunamadı veya henüz kazınmadı."}
                     </p>
                   </div>
-                );
-              })}
+                </>
+              ) : (
+                <div className="h-[200px] flex flex-col items-center justify-center text-sm text-gray-400 text-center px-6 border border-dashed border-[#E8E8E2] rounded-2xl bg-[#FCFBF9] space-y-2">
+                  <div className="text-base font-bold text-gray-500">Ürün Açıklaması Bulunamadı</div>
+                  <p className="max-w-md text-xs leading-relaxed text-gray-400">
+                    Veritabanında bu ürün için henüz açıklama verisi bulunmuyor. Ürün detay kazıma pipeline'ı çalıştırıldığında bu alanlar otomatik olarak dolacaktır.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            // --- ICINDEKILER TABI ---
+            <div className="space-y-6">
+              {productDetails && productDetails.ingredients && productDetails.ingredients !== "Metinde bulunamadı" && productDetails.ingredients !== "Metinden çıkarılan içerik listesi......" ? (
+                <div className="rounded-2xl border border-[#E8E8E2] bg-white p-5 shadow-sm space-y-3">
+                  <h3 className="text-[13px] font-bold text-[#1A1A1A] flex items-center gap-2 border-b border-[#F0F0EC] pb-2">
+                    <FlaskConical size={16} className="text-[#2D6A4F]" /> Formül İçerik Listesi (Ingredients)
+                  </h3>
+                  <div className="bg-[#F5F5F0] rounded-xl p-4 text-[13px] text-gray-700 leading-relaxed font-mono select-all max-h-[220px] overflow-y-auto">
+                    {productDetails.ingredients}
+                  </div>
+                </div>
+              ) : (
+                <div className="h-[200px] flex flex-col items-center justify-center text-sm text-gray-400 text-center px-6 border border-dashed border-[#E8E8E2] rounded-2xl bg-[#FCFBF9] space-y-2">
+                  <div className="text-base font-bold text-gray-500">İçindekiler Listesi Bulunamadı</div>
+                  <p className="max-w-md text-xs leading-relaxed text-gray-400">
+                    Bileşen listesi bu ürünün detay sayfasından ayıklanamadı veya henüz detay kazıma pipeline'ı çalıştırılmadı.
+                  </p>
+                </div>
+              )}
+
+              {/* UX Designer Önerileri & Gelecek Planı */}
+              <div className="rounded-2xl border border-[#DCDBCF] bg-gradient-to-r from-[#FDFBF7] to-[#FAF8F2] p-5 shadow-sm space-y-3">
+                <h4 className="text-[12px] font-bold text-[#1B4332] uppercase tracking-[0.05em] flex items-center gap-1.5">
+                  💡 UX / UI Yol Haritası Önerileri (UX Scope)
+                </h4>
+                <p className="text-[12.5px] leading-relaxed text-gray-600">
+                  Kullanıcı deneyimini mükemmelleştirmek amacıyla ilerleyen aşamalarda bu sekme altına eklenebilecek akıllı özellikler:
+                </p>
+                <ul className="text-[12px] text-gray-600 space-y-2 list-disc list-inside pl-1">
+                  <li><strong>EWG Temiz İçerik Skoru:</strong> Formüldeki maddelerin 1-10 arası tehlike derecesini görsel bar grafik halinde puanlamak.</li>
+                  <li><strong>Komedojenik (Gözenek Tıkama) Analizi:</strong> İçeriklerdeki akne tetikleyici kimyasalları tarayarak hassas ciltleri uyarmak.</li>
+                  <li><strong>Akıllı Asit Çakışması Uyarısı:</strong> Sahip olduğunuz diğer kozmetiklerle aynı rutinde kullanıldığında (örn. Retinol + C Vitamini) oluşabilecek tahriş risklerini analiz etmek.</li>
+                </ul>
+              </div>
             </div>
           )}
         </div>
