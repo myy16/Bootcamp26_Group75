@@ -5,7 +5,7 @@ import {
   getMenuColumns,
   BRANDS,
   CategoryRow,
-} from '../Categorydata'; // <-- yol projenizde farklıysa (data.ts nerede ise) güncelleyin
+} from '../Categorydata';
 
 interface MegaMenuProps {
   selectedCategoryId: number | null;
@@ -26,11 +26,22 @@ export function MegaMenu({
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const topCategories = getTopCategories();
-  // Markalar butonu aktif görünmeli:
-  // 1) Markalar paneli açıksa (hover/tıklama)
-  // 2) VEYA bir marka seçiliyse ve hiçbir panel açık değilse
+
   const isBrandsActive =
     openPanel === 'brands' || (openPanel === null && selectedBrandId !== null);
+
+  const isSelectedCategoryInPanel = (category: CategoryRow) => {
+    if (selectedCategoryId === null) return false;
+    if (selectedCategoryId === category.category_id) return true;
+
+    const columns = getMenuColumns(category.category_id);
+
+    return columns.some(
+      (column) =>
+        column.header.category_id === selectedCategoryId ||
+        column.items.some((item) => item.category_id === selectedCategoryId)
+    );
+  };
 
   const cancelClose = () => {
     if (closeTimer.current) {
@@ -47,7 +58,6 @@ export function MegaMenu({
   return (
     <div className="relative">
       <div className="bg-[#1B4332] flex gap-2 overflow-x-auto p-2 sticky top-[69px] z-20">
-        {/* Markalar sekmesi - Tümü'nün yerinde */}
         <div
           className="relative"
           onMouseEnter={() => {
@@ -57,11 +67,11 @@ export function MegaMenu({
           onMouseLeave={scheduleClose}
         >
           <button
-            onClick={() => setOpenPanel((p) => (p === 'brands' ? null : 'brands'))}
-            className={`px-[18px] py-2 rounded-[10px]  text-[13px] whitespace-nowrap transition-colors ${
+            onClick={() => setOpenPanel((panel) => (panel === 'brands' ? null : 'brands'))}
+            className={`px-[18px] py-2 rounded-[10px] text-[13px] whitespace-nowrap transition-colors ${
               isBrandsActive
-                ? "bg-[#2D6A4F] text-white" 
-                : "bg-transparent text-white/60 hover:bg-white/5"
+                ? 'bg-[#2D6A4F] text-white'
+                : 'bg-transparent text-white/60 hover:bg-white/5'
             }`}
           >
             Markalar
@@ -70,8 +80,9 @@ export function MegaMenu({
 
         {topCategories.map((cat) => {
           const isActive =
-          openPanel === cat.category_id ||
-          (openPanel === null && selectedCategoryId === cat.category_id);
+            openPanel === cat.category_id ||
+            (openPanel === null && isSelectedCategoryInPanel(cat));
+
           return (
             <div
               key={cat.category_id}
@@ -89,8 +100,8 @@ export function MegaMenu({
                 }}
                 className={`px-[18px] py-2 rounded-[10px] text-[13px] whitespace-nowrap transition-all ${
                   isActive
-                    ? "bg-[#2D6A4F] text-white" 
-                    : "bg-transparent text-white/60 hover:bg-white/5"
+                    ? 'bg-[#2D6A4F] text-white'
+                    : 'bg-transparent text-white/60 hover:bg-white/5'
                 }`}
               >
                 {cat.name}
@@ -100,7 +111,6 @@ export function MegaMenu({
         })}
       </div>
 
-      {/* Markalar paneli */}
       {openPanel === 'brands' && (
         <div
           onMouseEnter={cancelClose}
@@ -111,6 +121,7 @@ export function MegaMenu({
             <div className="flex items-center gap-1 text-[15px] font-bold text-[#1A1A1A] mb-4">
               Markalar <ChevronRight size={15} className="text-[#999]" />
             </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-8 gap-y-2.5">
               {BRANDS.map((brand) => (
                 <button
@@ -133,15 +144,12 @@ export function MegaMenu({
         </div>
       )}
 
-      {/* Kategori panelleri */}
       {topCategories.map((cat) => {
         if (openPanel !== cat.category_id) return null;
+
         const columns = getMenuColumns(cat.category_id);
         if (columns.length === 0) return null;
 
-        // Ara kategorisi olmayan üst kategoriler (Cilt Bakımı, Saç Bakımı,
-        // Kişisel Bakım): tek sütun döner ve başlık üst kategorinin kendisidir.
-        // Bu durumda başlığı tekrar yazmayıp öğeleri direkt grid'e basıyoruz.
         const isFlatList = columns.length === 1 && columns[0].header.category_id === cat.category_id;
 
         return (
@@ -192,6 +200,7 @@ export function MegaMenu({
                       <div className="text-[13px] font-semibold text-[#1A1A1A] mb-2.5">
                         {col.header.name}
                       </div>
+
                       <div className="flex flex-col gap-1.5">
                         {col.items.map((item) => (
                           <button

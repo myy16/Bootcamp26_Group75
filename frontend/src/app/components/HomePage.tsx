@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, SlidersHorizontal, Bell, ChevronDown } from 'lucide-react';
+import { Search, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { PRODUCTS, Product } from '../data';
 import { User } from '@supabase/supabase-js';
 import { ProductCard } from './ProductCard';
@@ -21,8 +21,8 @@ interface HomePageProps {
 type SortKey = 'price-desc' | 'price-asc' | 'name-asc' | 'name-desc';
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: 'price-desc', label: 'Artan Fiyat' },
-  { key: 'price-asc', label: 'Azalan Fiyat' },
+  { key: 'price-asc', label: 'Artan Fiyat' },
+  { key: 'price-desc', label: 'Azalan Fiyat' },
   { key: 'name-asc', label: 'Marka Adına Göre (A-Z)' },
   { key: 'name-desc', label: 'Marka Adına Göre (Z-A)' },
 ];
@@ -43,20 +43,16 @@ export function HomePage({
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
-  // brand_id sadece MegaMenu'de "seçili marka" görünümü (bold/renk) için tutuluyor.
-  // Product'ta brand_id olmadığından, gerçek filtreleme selectedBrandName ile yapılıyor.
   const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
   const [selectedBrandName, setSelectedBrandName] = useState<string | null>(null);
 
-const handleSelectCategory = (cat: CategoryRow) => {
+  const handleSelectCategory = (cat: CategoryRow) => {
     if (selectedCategoryId === cat.category_id) {
-      // Aynı kategoriye tekrar tıklanırsa filtreyi temizle
       setSelectedCategoryId(null);
       setSelectedCategoryName(null);
     } else {
       setSelectedCategoryId(cat.category_id);
       setSelectedCategoryName(cat.name);
-      // Kategori seçilince marka filtresini temizle (ikisi aynı anda aktif olamaz)
       setSelectedBrandId(null);
       setSelectedBrandName(null);
     }
@@ -69,7 +65,6 @@ const handleSelectCategory = (cat: CategoryRow) => {
     } else {
       setSelectedBrandId(brandId);
       setSelectedBrandName(name);
-      // Marka seçilince kategori filtresini temizle (ikisi aynı anda aktif olamaz)
       setSelectedCategoryId(null);
       setSelectedCategoryName(null);
     }
@@ -83,18 +78,16 @@ const handleSelectCategory = (cat: CategoryRow) => {
   };
 
   const source = products && products.length > 0 ? products : PRODUCTS;
+  const searchTerm = search.trim();
 
-  // Seçili kategorinin altındaki tüm leaf (en alt seviye) kategori isimleri
-  // (normalize edilmiş). Hiçbir kategori seçili değilse null -> filtre yok.
   const allowedCategoryNames =
     selectedCategoryId !== null ? new Set(getLeafDescendantNames(selectedCategoryId)) : null;
 
   const normalizedSelectedBrand = selectedBrandName ? normalizeText(selectedBrandName) : null;
 
-  // Hem filtreleme hem de veri tabanı yapınıza tam uyumlu sıralama
   const filteredAndSorted = source
     .filter((p) => {
-      const q = search.toLowerCase();
+      const q = searchTerm.toLowerCase();
 
       const matchSearch =
         !q || p.title.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q);
@@ -102,34 +95,34 @@ const handleSelectCategory = (cat: CategoryRow) => {
       const matchCategory =
         allowedCategoryNames === null || allowedCategoryNames.has(normalizeText(p.category));
 
+      const normalizedProductBrand = normalizeText(p.brand);
       const matchBrand =
-        normalizedSelectedBrand === null || normalizeText(p.brand) === normalizedSelectedBrand;
+        normalizedSelectedBrand === null ||
+        normalizedProductBrand.includes(normalizedSelectedBrand) ||
+        normalizedSelectedBrand.includes(normalizedProductBrand);
 
       return matchSearch && matchCategory && matchBrand;
     })
-    .slice() 
+    .slice()
     .sort((a, b) => {
-      // data.ts'teki Product tipinde fiyatlar `stores: {name, price}[]` içinde.
       const pa = a.stores?.filter((s) => s.price > 0).map((s) => s.price) || [];
       const pb = b.stores?.filter((s) => s.price > 0).map((s) => s.price) || [];
 
       switch (sortBy) {
         case 'price-asc': {
-          // Artan fiyat: Ürünün marketler içindeki EN UCUZ fiyatını bul, hiç fiyat yoksa en sona at (9999)
           const minA = pa.length ? Math.min(...pa) : 9999;
           const minB = pb.length ? Math.min(...pb) : 9999;
           return minA - minB;
         }
         case 'price-desc': {
-          // Azalan fiyat: Ürünün marketler içindeki EN PAHALI fiyatını bul, hiç fiyat yoksa en sona at (0)
           const maxA = pa.length ? Math.max(...pa) : 0;
           const maxB = pb.length ? Math.max(...pb) : 0;
           return maxB - maxA;
         }
         case 'name-asc':
-          return a.title.localeCompare(b.title, 'tr');
+          return a.brand.localeCompare(b.brand, 'tr');
         case 'name-desc':
-          return b.title.localeCompare(a.title, 'tr');
+          return b.brand.localeCompare(a.brand, 'tr');
         default:
           return 0;
       }
@@ -155,14 +148,8 @@ const handleSelectCategory = (cat: CategoryRow) => {
             className="w-full sm:w-[220px] lg:w-[260px] pl-9 pr-3.5 py-2.5 rounded-lg border-[1.5px] border-[#E0E0DA] bg-white text-[13px] text-[#1A1A1A] outline-none focus:border-[#2D6A4F] transition-colors"
           />
         </div>
-
-        {/* <button className="w-[38px] h-[38px] rounded-lg border-[1.5px] border-[#E0E0DA] bg-white flex items-center justify-center text-[#666] relative hover:bg-gray-50 transition-colors">
-          <Bell size={16} />
-          <span className="absolute top-1.5 right-1.5 w-[7px] h-[7px] rounded-full bg-[#FFB7B2] border-[1.5px] border-[#F5F5F0]" />
-        </button> */}
       </div>
 
-      {/* Kategori / Marka mega menü */}
       <MegaMenu
         selectedCategoryId={selectedCategoryId}
         selectedBrandId={selectedBrandId}
@@ -171,12 +158,9 @@ const handleSelectCategory = (cat: CategoryRow) => {
       />
 
       <div className="px-4 sm:px-6 lg:px-8 py-7 flex flex-col gap-8">
-        {/* Hero carousel */}
         <HeroCarousel />
 
-        {/* Products section */}
         <div>
-          {/* Sub-category filter + product count */}
           <div className="flex items-center justify-between mb-[18px] flex-wrap gap-2.5">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-[#999]">
@@ -184,6 +168,7 @@ const handleSelectCategory = (cat: CategoryRow) => {
                 {selectedCategoryName ? ` · ${selectedCategoryName}` : ''}
                 {selectedBrandName ? ` · ${selectedBrandName}` : ''}
               </span>
+
               {(selectedCategoryId !== null || selectedBrandName !== null) && (
                 <button
                   onClick={clearFilters}
@@ -201,21 +186,16 @@ const handleSelectCategory = (cat: CategoryRow) => {
                   className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border-[1.5px] border-[#E0E0DA] bg-white text-[#666] text-[13px] hover:bg-gray-50 transition-colors"
                 >
                   <SlidersHorizontal size={14} />
-                  Filtrele
+                  Sırala
                   <ChevronDown
                     size={13}
-                    className={`transition-transform ${
-                      sortOpen ? 'rotate-180' : ''
-                    }`}
+                    className={`transition-transform ${sortOpen ? 'rotate-180' : ''}`}
                   />
                 </button>
 
                 {sortOpen && (
                   <>
-                    <div
-                      className="fixed inset-0 z-20"
-                      onClick={() => setSortOpen(false)}
-                    />
+                    <div className="fixed inset-0 z-20" onClick={() => setSortOpen(false)} />
                     <div className="absolute right-0 top-[46px] z-30 w-[220px] bg-white rounded-xl border border-[#E8E8E2] shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden py-1">
                       {SORT_OPTIONS.map((opt) => (
                         <button
@@ -240,10 +220,41 @@ const handleSelectCategory = (cat: CategoryRow) => {
             </div>
           </div>
 
-          {/* Responsive product grid */}
           {filteredAndSorted.length === 0 ? (
-            <div className="text-center py-[60px] text-[#999] text-sm">
-              Arama kriterlerine uygun ürün bulunamadı.
+            <div className="text-center py-[60px] flex flex-col items-center gap-3">
+              <Search size={36} className="text-[#999]" />
+
+              <div className="text-[#1A1A1A] font-semibold text-base">
+                {selectedBrandName
+                  ? `${selectedBrandName} markasına ait ürün bulunmuyor`
+                  : selectedCategoryName
+                  ? `${selectedCategoryName} kategorisinde henüz ürün bulunmuyor`
+                  : searchTerm
+                  ? `"${searchTerm}" aramanızla eşleşen ürün bulunamadı`
+                  : 'Henüz gösterilecek ürün bulunmuyor'}
+              </div>
+
+              <div className="text-[#999] text-sm max-w-xs">
+                {selectedBrandName
+                  ? 'Bu markaya ait ürünler eklendiğinde burada görüntülenecektir. Dilerseniz tüm ürünleri inceleyebilirsiniz.'
+                  : selectedCategoryName
+                  ? 'Bu kategoriye yeni ürünler eklendiğinde burada görüntülenecektir. Şimdilik diğer kategorilere göz atabilirsiniz.'
+                  : searchTerm
+                  ? 'Arama kelimesini değiştirerek tekrar deneyebilir veya farklı bir marka/kategori arayabilirsiniz.'
+                  : 'Ürünler eklendiğinde burada listelenecektir. Şimdilik tüm kategorileri inceleyebilirsiniz.'}
+              </div>
+
+              {(selectedBrandName || selectedCategoryName || searchTerm) && (
+                <button
+                  onClick={() => {
+                    clearFilters();
+                    setSearch('');
+                  }}
+                  className="mt-1 px-4 py-2 rounded-lg bg-[#1B4332] text-white text-sm font-semibold hover:bg-[#153427] transition-colors"
+                >
+                  Tüm ürünlere dön
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
