@@ -26,6 +26,11 @@ export function MegaMenu({
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const topCategories = getTopCategories();
+  // Markalar butonu aktif görünmeli:
+  // 1) Markalar paneli açıksa (hover/tıklama)
+  // 2) VEYA bir marka seçiliyse ve hiçbir panel açık değilse
+  const isBrandsActive =
+    openPanel === 'brands' || (openPanel === null && selectedBrandId !== null);
 
   const cancelClose = () => {
     if (closeTimer.current) {
@@ -54,7 +59,7 @@ export function MegaMenu({
           <button
             onClick={() => setOpenPanel((p) => (p === 'brands' ? null : 'brands'))}
             className={`px-[18px] py-2 rounded-[10px]  text-[13px] whitespace-nowrap transition-colors ${
-              selectedBrandId !== null
+              isBrandsActive
                 ? "bg-[#2D6A4F] text-white" 
                 : "bg-transparent text-white/60 hover:bg-white/5"
             }`}
@@ -64,7 +69,9 @@ export function MegaMenu({
         </div>
 
         {topCategories.map((cat) => {
-          const isActive = selectedCategoryId === cat.category_id;
+          const isActive =
+          openPanel === cat.category_id ||
+          (openPanel === null && selectedCategoryId === cat.category_id);
           return (
             <div
               key={cat.category_id}
