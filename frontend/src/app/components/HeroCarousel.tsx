@@ -10,6 +10,7 @@ interface HeroCarouselProps {
   products?: Product[];
   user: User | null;
   userSkinTypeName?: string | null;
+  onOpenChart?: (product: Product) => void;
 }
 
 interface RecommendationSlide {
@@ -109,7 +110,7 @@ function getSubtitle(
   }
 
   if (!userSkinTypeName) {
-    return 'Profilindeki cilt tipi tamamlandığında kişisel öneriler önceliklenir';
+    return 'Profilini tamamladığında öneriler cilt tipine göre önceliklenir; şimdilik en uygun fiyatlı ürünler listeleniyor';
   }
 
   if (hasPersonalizedSlides) {
@@ -120,14 +121,14 @@ function getSubtitle(
 }
 
 function getTitle(user: User | null, hasPersonalizedSlides = false): string {
-  if (user && hasPersonalizedSlides) {
+  if (user || hasPersonalizedSlides) {
     return 'Sana Uygun Ürünler';
   }
 
   return 'Öne Çıkan Ürünler';
 }
 
-export function HeroCarousel({ products = [], user, userSkinTypeName }: HeroCarouselProps) {
+export function HeroCarousel({ products = [], user, userSkinTypeName, onOpenChart }: HeroCarouselProps) {
   const recommendationSlides = useMemo<RecommendationSlide[]>(() => {
     const productsWithPrices = products.filter((product) => getCheapestValidStore(product) !== null);
     const personalizedProducts = productsWithPrices.filter((product) =>
@@ -276,19 +277,27 @@ export function HeroCarousel({ products = [], user, userSkinTypeName }: HeroCaro
                 if (!cheapest) return null;
 
                 return (
-                  <div
+                  <button
                     key={slide.id}
+                    type="button"
+                    onClick={() => onOpenChart?.(slide.product)}
                     style={{
                       minWidth: 0,
                       borderRadius: 12,
                       overflow: 'hidden',
                       background: slide.bg,
                       border: '1.5px solid rgba(0,0,0,0.06)',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                      cursor: 'grab',
+                      boxShadow: '0 4px 18px rgba(0,0,0,0.06)',
+                      cursor: onOpenChart ? 'pointer' : 'default',
+                      appearance: 'none',
+                      padding: 0,
+                      textAlign: 'left',
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
                     }}
                   >
-                    <div style={{ padding: '20px 20px 0' }}>
+                    <div style={{ padding: '18px 18px 10px', minHeight: 96 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                         <div
                           style={{
@@ -321,7 +330,20 @@ export function HeroCarousel({ products = [], user, userSkinTypeName }: HeroCaro
                         )}
                       </div>
 
-                      <div style={{ fontFamily: '"Playfair Display", serif', fontSize: 15, fontWeight: 600, color: '#1A1A1A', lineHeight: 1.3, marginBottom: 4 }}>
+                      <div
+                        style={{
+                          fontFamily: '"Playfair Display", serif',
+                          fontSize: 15,
+                          fontWeight: 600,
+                          color: '#1A1A1A',
+                          lineHeight: 1.3,
+                          marginBottom: 4,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}
+                      >
                         {slide.product.title}
                       </div>
 
@@ -330,23 +352,41 @@ export function HeroCarousel({ products = [], user, userSkinTypeName }: HeroCaro
                       </div>
                     </div>
 
-                    <div style={{ position: 'relative' }}>
+                    <div
+                      style={{
+                        position: 'relative',
+                        flex: 1,
+                        minHeight: 168,
+                        background: 'rgba(255,255,255,0.72)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '12px 18px 18px',
+                      }}
+                    >
                       <img
                         src={slide.product.image}
                         alt={slide.product.title}
-                        style={{ width: '100%', height: 156, objectFit: 'cover', display: 'block' }}
+                        style={{
+                          width: '100%',
+                          height: 148,
+                          objectFit: 'contain',
+                          display: 'block',
+                          mixBlendMode: 'multiply',
+                        }}
                       />
 
                       <div
                         style={{
                           position: 'absolute',
-                          bottom: 10,
-                          left: 10,
+                          bottom: 12,
+                          left: 12,
                           background: 'rgba(255,255,255,0.96)',
                           backdropFilter: 'blur(8px)',
                           borderRadius: 10,
-                          padding: '6px 12px',
+                          padding: '7px 12px',
                           boxShadow: '0 2px 12px rgba(0,0,0,0.1)',
+                          maxWidth: 'calc(100% - 24px)',
                         }}
                       >
                         <div style={{ fontSize: 9, color: '#2D6A4F', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
@@ -361,7 +401,7 @@ export function HeroCarousel({ products = [], user, userSkinTypeName }: HeroCaro
                         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: slide.accentColor }} />
                       )}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

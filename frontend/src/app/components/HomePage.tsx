@@ -160,7 +160,12 @@ export function HomePage({
       />
 
       <div className="px-4 sm:px-6 lg:px-8 py-7 flex flex-col gap-8">
-        <HeroCarousel products={source} user={user} userSkinTypeName={userSkinTypeName} />
+        <HeroCarousel
+          products={source}
+          user={user}
+          userSkinTypeName={userSkinTypeName}
+          onOpenChart={onOpenChart}
+        />
 
         <div>
           <div className="flex items-center justify-between mb-[18px] flex-wrap gap-2.5">
