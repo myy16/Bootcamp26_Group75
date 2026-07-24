@@ -112,13 +112,37 @@ export const HERO_SLIDES = [
     bg: 'linear-gradient(135deg, #EFF6FB 0%, #E8F2FA 100%)',
     accentColor: '#0077B6',
   },
-  {
+ {
     id: 'hero3',
     label: 'Yaz Koruması',
     tagline: 'SPF Filtreli Ürünler',
     product: ROUTINE_PRODUCTS[2],
     bg: 'linear-gradient(135deg, #FDF5F5 0%, #FAF0F0 100%)',
     accentColor: '#E63946',
+  },
+  {
+    id: 'hero4',
+    label: 'Leke Karşıtı Bakım',
+    tagline: 'Aydınlatıcı Serum Seçkisi',
+    product: ROUTINE_PRODUCTS[0],
+    bg: 'linear-gradient(135deg, #F6F3FF 0%, #EFEAFB 100%)',
+    accentColor: '#6D597A',
+  },
+  {
+    id: 'hero5',
+    label: 'Saç Bakımı',
+    tagline: 'Onarıcı Bakım Rutini',
+    product: ROUTINE_PRODUCTS[1],
+    bg: 'linear-gradient(135deg, #FFF7E8 0%, #FFF1D6 100%)',
+    accentColor: '#B7791F',
+  },
+  {
+    id: 'hero6',
+    label: 'Makyaj Bazı',
+    tagline: 'Günlük Işıltı Etkisi',
+    product: ROUTINE_PRODUCTS[2],
+    bg: 'linear-gradient(135deg, #FFF2F6 0%, #FBE7EE 100%)',
+    accentColor: '#B83280',
   },
 ];
 
