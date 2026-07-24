@@ -12,6 +12,8 @@ export interface Product {
   title: string;
   category: string;
   attributes?: string[];
+  skinTypeNames?: string[];
+  tagNames?: string[];
   stores: StorePrice[];
   featured?: boolean;
   featuredLabel?: string;

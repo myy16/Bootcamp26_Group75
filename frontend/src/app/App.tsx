@@ -13,6 +13,44 @@ import { AuthModal } from "./components/AuthModal";
 import { ChartModal } from "./components/ChartModal";
 import "../styles/fonts.css";
 
+const BASE_PRODUCT_SELECT = `
+  id,
+  universal_name,
+  image_url,
+  brands!brand_id ( name ),
+  categories!category_id ( name ),
+  store_mappings!p_id (
+    current_price,
+    markets!m_id ( name )
+  ),
+  price_log!p_id ( price, date )
+`;
+
+const ENRICHED_PRODUCT_SELECT = `
+  ${BASE_PRODUCT_SELECT},
+  product_skin_types!product_id (
+    skin_type_id,
+    skin_types!skin_type_id ( name )
+  ),
+  product_tags!product_id (
+    tags!tag_id ( name )
+  )
+`;
+
+function getRelatedName(relation: any): string | null {
+  if (Array.isArray(relation)) {
+    return relation[0]?.name ?? null;
+  }
+
+  return relation?.name ?? null;
+}
+
+function getNestedRelationNames(rows: any[] | null | undefined, relationKey: string): string[] {
+  return (rows ?? [])
+    .map((row) => getRelatedName(row?.[relationKey]))
+    .filter((name): name is string => Boolean(name));
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("home");
   const [cartItems, setCartItems] = useState<Product[]>([]);
@@ -24,6 +62,7 @@ export default function App() {
 
   // --- AUTH (KULLANICI SEANS) STATE'LERİ ---
   const [user, setUser] = useState<User | null>(null);
+  const [userSkinTypeName, setUserSkinTypeName] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalTab, setAuthModalTab] = useState<"login" | "register">("login");
 
@@ -45,6 +84,40 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // --- KULLANICI CİLT TİPİNİ OKUMA ---
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!user) {
+      setUserSkinTypeName(null);
+      return;
+    }
+
+    async function fetchUserSkinType() {
+      try {
+        const { data, error } = await supabase
+          .from("user_profiles")
+          .select("skin_types!skin_type_id ( name )")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (!cancelled) {
+          setUserSkinTypeName(getRelatedName((data as any)?.skin_types));
+        }
+      } catch (err) {
+        console.error("Kullanıcı cilt tipi yüklenirken hata oluştu:", err);
+        if (!cancelled) setUserSkinTypeName(null);
+      }
+    }
+
+    fetchUserSkinType();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   // --- YENİ ENTEGRASYON: KULLANICI GİRİŞ YAPTIĞINDA FAVORİLERİ VERİTABANINDAN ÇEKME ---
   useEffect(() => {
@@ -88,18 +161,14 @@ export default function App() {
           return;
         }
 
-        const { data, error } = await supabase.from("products").select(`
-          id,
-          universal_name,
-          image_url,
-          brands!brand_id ( name ),
-          categories!category_id ( name ),
-          store_mappings!p_id (
-            current_price,
-            markets!m_id ( name )
-          ),
-          price_log!p_id ( price, date ) 
-        `);
+        let { data, error } = await supabase.from("products").select(ENRICHED_PRODUCT_SELECT);
+
+        if (error) {
+          console.warn("Öneri eşleşme verileri alınamadı, temel ürün verisiyle devam ediliyor:", error);
+          const fallbackResult = await supabase.from("products").select(BASE_PRODUCT_SELECT);
+          data = fallbackResult.data;
+          error = fallbackResult.error;
+        }
 
         if (error) throw error;
 
@@ -128,7 +197,9 @@ export default function App() {
             image: item.image_url || "https://via.placeholder.com/600",
             brand: item.brands?.name || "Markasız",
             category: item.categories?.name || "Genel",
-            attributes: [],
+            attributes: getNestedRelationNames(item.product_tags, "tags"),
+            skinTypeNames: getNestedRelationNames(item.product_skin_types, "skin_types"),
+            tagNames: getNestedRelationNames(item.product_tags, "tags"),
             stores: storesData,
             featured: false,
             history: (item.price_log || []).map((log: any) => ({
@@ -263,6 +334,7 @@ export default function App() {
             onAddToCart={handleAddToCart}
             onToggleFavorite={handleToggleFavorite}
             user={user}
+            userSkinTypeName={userSkinTypeName}
             onOpenLogin={() => {
               setAuthModalTab("login");
               setIsAuthModalOpen(true);

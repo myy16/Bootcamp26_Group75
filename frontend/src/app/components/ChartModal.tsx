@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import ReactECharts from "echarts-for-react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import * as echarts from "echarts";
 import { X, ArrowDown, ArrowUp } from "lucide-react";
 import { supabase } from "../supabase";
 import { STORE_COLORS, StoreName } from "../data";
@@ -50,6 +50,35 @@ const SIGNAL_LABELS: Record<string, { label: string; color: string; bg: string }
   stable: { label: "Sabit Seyir", color: "#8A6D00", bg: "#FBF4DC" },
   increase: { label: "Artış Bekleniyor", color: "#C3002E", bg: "#FDECEC" },
 };
+
+function EChartsView({
+  option,
+  style,
+  notMerge,
+}: {
+  option: echarts.EChartsOption;
+  style?: CSSProperties;
+  notMerge?: boolean;
+}) {
+  const chartRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!chartRef.current) return;
+
+    const chart = echarts.init(chartRef.current);
+    chart.setOption(option, { notMerge: Boolean(notMerge) });
+
+    const handleResize = () => chart.resize();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      chart.dispose();
+    };
+  }, [option, notMerge]);
+
+  return <div ref={chartRef} style={style} />;
+}
 
 function fmtDate(d: Date): string {
   // Ay adı yazıyla (ör. "18 Haz")
@@ -392,7 +421,7 @@ export function ChartModal({
               verisi bulunmuyor.
             </div>
           ) : (
-            <ReactECharts
+            <EChartsView
               option={option}
               style={{ height: 340, width: "100%" }}
               notMerge

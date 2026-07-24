@@ -14,6 +14,7 @@ interface HomePageProps {
   onAddToCart: (product: Product) => void;
   onToggleFavorite: (id: string) => void;
   user: User | null;
+  userSkinTypeName?: string | null;
   onOpenLogin: () => void;
   onOpenChart: (product: Product) => void;
 }
@@ -34,6 +35,7 @@ export function HomePage({
   onAddToCart,
   onToggleFavorite,
   user,
+  userSkinTypeName,
   onOpenLogin,
   onOpenChart,
 }: HomePageProps) {
@@ -158,7 +160,7 @@ export function HomePage({
       />
 
       <div className="px-4 sm:px-6 lg:px-8 py-7 flex flex-col gap-8">
-        <HeroCarousel />
+        <HeroCarousel products={source} user={user} userSkinTypeName={userSkinTypeName} />
 
         <div>
           <div className="flex items-center justify-between mb-[18px] flex-wrap gap-2.5">
