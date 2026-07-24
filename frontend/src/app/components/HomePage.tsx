@@ -48,7 +48,7 @@ export function HomePage({
   const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
   const [selectedBrandName, setSelectedBrandName] = useState<string | null>(null);
 
-  const handleSelectCategory = (cat: CategoryRow) => {
+const handleSelectCategory = (cat: CategoryRow) => {
     if (selectedCategoryId === cat.category_id) {
       // Aynı kategoriye tekrar tıklanırsa filtreyi temizle
       setSelectedCategoryId(null);
@@ -56,6 +56,9 @@ export function HomePage({
     } else {
       setSelectedCategoryId(cat.category_id);
       setSelectedCategoryName(cat.name);
+      // Kategori seçilince marka filtresini temizle (ikisi aynı anda aktif olamaz)
+      setSelectedBrandId(null);
+      setSelectedBrandName(null);
     }
   };
 
@@ -66,6 +69,9 @@ export function HomePage({
     } else {
       setSelectedBrandId(brandId);
       setSelectedBrandName(name);
+      // Marka seçilince kategori filtresini temizle (ikisi aynı anda aktif olamaz)
+      setSelectedCategoryId(null);
+      setSelectedCategoryName(null);
     }
   };
 
