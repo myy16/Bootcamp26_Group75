@@ -2,6 +2,7 @@ import os
 import json
 import math
 import uuid
+from typing import Optional
 from dotenv import load_dotenv
 from supabase import create_client, Client
 

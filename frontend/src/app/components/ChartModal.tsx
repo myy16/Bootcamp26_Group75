@@ -1,12 +1,6 @@
-<<<<<<< HEAD
-import { useEffect, useMemo, useState } from "react";
-import ReactECharts from "echarts-for-react";
-import { X, ArrowDown, ArrowUp, BookOpen, FlaskConical, Target, TrendingUp, Info } from "lucide-react";
-=======
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import * as echarts from "echarts";
-import { X, ArrowDown, ArrowUp } from "lucide-react";
->>>>>>> f94959a1e4629dc61ed8fee8fcf548f08dd3abb5
+import { X, ArrowDown, ArrowUp, BookOpen, FlaskConical, Target, TrendingUp, Info } from "lucide-react";
 import { supabase } from "../supabase";
 import { STORE_COLORS, StoreName } from "../data";
 
@@ -309,12 +303,14 @@ export function ChartModal({
     // Legend yalnızca mağaza adlarını (renkli nokta ile) gösterir
     const legendData = legendStores.map((s) => s.name);
 
-    const option = {
+    const option: echarts.EChartsOption = {
       color: legendStores.map((s) => s.color),
       tooltip: {
         trigger: "axis",
-        valueFormatter: (v: number) =>
-          v != null ? fmtTL(v) : "-",
+        valueFormatter: (value: echarts.EChartsOption) => {
+          const v = Array.isArray(value) ? value[0] : value;
+          return v != null && typeof v === "number" ? fmtTL(v) : "-";
+        },
       },
       legend: {
         bottom: 0,
@@ -459,11 +455,8 @@ export function ChartModal({
             <div className="h-[320px] flex items-center justify-center text-sm text-gray-400 animate-pulse">
               Yükleniyor...
             </div>
-<<<<<<< HEAD
           ) : activeTab === "price" ? (
-            // --- FIYAT ANALIZI TABI ---
             <div className="space-y-6">
-              {/* Aralık butonları */}
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {RANGES.map((r) => {
                   const active = range === r.key;
@@ -481,36 +474,6 @@ export function ChartModal({
                     </button>
                   );
                 })}
-=======
-          ) : !hasData ? (
-            <div className="h-[320px] flex items-center justify-center text-sm text-gray-400 text-center px-6">
-              Bu ürün için henüz yeterli fiyat geçmişi veya tahmin
-              verisi bulunmuyor.
-            </div>
-          ) : (
-            <EChartsView
-              option={option}
-              style={{ height: 340, width: "100%" }}
-              notMerge
-            />
-          )}
-
-          {/* Özet: dönem içi en düşük / en yüksek fiyat (yan yana) */}
-          {hasData && periodMin > 0 && (
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-3 bg-[#F5F5F0] rounded-xl p-3.5">
-                <div className="w-9 h-9 rounded-full bg-[#EBF5F0] flex items-center justify-center shrink-0">
-                  <ArrowDown size={18} className="text-[#52B788]" />
-                </div>
-                <div>
-                  <div className="text-[11px] text-gray-500">
-                    Dönem içi en düşük
-                  </div>
-                  <div className="text-[16px] font-bold text-[#1A1A1A]">
-                    {fmtTL(periodMin)}
-                  </div>
-                </div>
->>>>>>> f94959a1e4629dc61ed8fee8fcf548f08dd3abb5
               </div>
 
               {!hasData ? (
@@ -519,13 +482,12 @@ export function ChartModal({
                 </div>
               ) : (
                 <>
-                  <ReactECharts
+                  <EChartsView
                     option={option}
                     style={{ height: 340, width: "100%" }}
                     notMerge
                   />
 
-                  {/* Özet: dönem içi en düşük / en yüksek fiyat (yan yana) */}
                   {periodMin > 0 && (
                     <div className="grid grid-cols-2 gap-3">
                       <div className="flex items-center gap-3 bg-[#F5F5F0] rounded-xl p-3.5">
@@ -550,7 +512,6 @@ export function ChartModal({
                     </div>
                   )}
 
-                  {/* Tahmin içgörüleri (insight_text, signal, confidence) */}
                   {predictionInsights.length > 0 && (
                     <div className="space-y-2.5 pt-2">
                       <div className="text-[13px] font-bold text-[#1A1A1A]">Yapay Zeka Tahmini</div>

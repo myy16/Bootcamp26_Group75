@@ -29,6 +29,10 @@ app.add_middleware(
 )
 # In-memory session store for chat history (for easy testing in Swagger UI)
 SESSIONS: Dict[str, List[Dict[str, Any]]] = {}
+# In-memory store for last recommended products per session (muadil/alternatif referansı)
+SESSION_PRODUCTS: Dict[str, List[Dict[str, Any]]] = {}
+# In-memory store for chat budget override per session
+SESSION_BUDGETS: Dict[str, Dict[str, Any]] = {}
 
 # Pydantic models
 class ChatRequest(BaseModel):
@@ -93,7 +97,9 @@ def chat_endpoint(request: ChatRequest):
             "profile_context": {},
             "missing_fields": [],
             "retrieved_products": [],
-            "routing_decision": None
+            "routing_decision": None,
+            "last_recommended_products": SESSION_PRODUCTS.get(session_key, []),
+            "chat_budget_override": SESSION_BUDGETS.get(session_key),
         }
         
         result = chatbot_app.invoke(initial_state)
@@ -102,6 +108,14 @@ def chat_endpoint(request: ChatRequest):
         updated_history = result.get("messages", [])
         if request.history_override is None:
             SESSIONS[session_key] = updated_history
+        
+        # Persist last recommended products and budget override for next turn
+        last_products = result.get("last_recommended_products", [])
+        if last_products:
+            SESSION_PRODUCTS[session_key] = last_products
+        budget_override = result.get("chat_budget_override")
+        if budget_override:
+            SESSION_BUDGETS[session_key] = budget_override
             
         # Get last message as response
         assistant_response = "Üzgünüm, yanıt oluşturulamadı."
@@ -159,10 +173,17 @@ def get_profile(user_id: str):
 @app.post("/session/clear")
 def clear_session(user_id: str, session_id: str = "default_session"):
     """
-    Clears the in-memory chat history for a session.
+    Clears the in-memory chat history, product memory and budget override for a session.
     """
     session_key = f"{user_id}:{session_id}"
+    cleared = False
     if session_key in SESSIONS:
         del SESSIONS[session_key]
+        cleared = True
+    if session_key in SESSION_PRODUCTS:
+        del SESSION_PRODUCTS[session_key]
+    if session_key in SESSION_BUDGETS:
+        del SESSION_BUDGETS[session_key]
+    if cleared:
         return {"status": "success", "message": f"Session {session_id} for user {user_id} cleared."}
     return {"status": "not_found", "message": "Session not found."}
