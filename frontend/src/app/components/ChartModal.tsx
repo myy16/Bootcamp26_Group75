@@ -1,6 +1,12 @@
+<<<<<<< HEAD
 import { useEffect, useMemo, useState } from "react";
 import ReactECharts from "echarts-for-react";
 import { X, ArrowDown, ArrowUp, BookOpen, FlaskConical, Target, TrendingUp, Info } from "lucide-react";
+=======
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import * as echarts from "echarts";
+import { X, ArrowDown, ArrowUp } from "lucide-react";
+>>>>>>> f94959a1e4629dc61ed8fee8fcf548f08dd3abb5
 import { supabase } from "../supabase";
 import { STORE_COLORS, StoreName } from "../data";
 
@@ -50,6 +56,35 @@ const SIGNAL_LABELS: Record<string, { label: string; color: string; bg: string }
   stable: { label: "Sabit Seyir", color: "#8A6D00", bg: "#FBF4DC" },
   increase: { label: "Artış Bekleniyor", color: "#C3002E", bg: "#FDECEC" },
 };
+
+function EChartsView({
+  option,
+  style,
+  notMerge,
+}: {
+  option: echarts.EChartsOption;
+  style?: CSSProperties;
+  notMerge?: boolean;
+}) {
+  const chartRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!chartRef.current) return;
+
+    const chart = echarts.init(chartRef.current);
+    chart.setOption(option, { notMerge: Boolean(notMerge) });
+
+    const handleResize = () => chart.resize();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      chart.dispose();
+    };
+  }, [option, notMerge]);
+
+  return <div ref={chartRef} style={style} />;
+}
 
 function fmtDate(d: Date): string {
   // Ay adı yazıyla (ör. "18 Haz")
@@ -424,6 +459,7 @@ export function ChartModal({
             <div className="h-[320px] flex items-center justify-center text-sm text-gray-400 animate-pulse">
               Yükleniyor...
             </div>
+<<<<<<< HEAD
           ) : activeTab === "price" ? (
             // --- FIYAT ANALIZI TABI ---
             <div className="space-y-6">
@@ -445,6 +481,36 @@ export function ChartModal({
                     </button>
                   );
                 })}
+=======
+          ) : !hasData ? (
+            <div className="h-[320px] flex items-center justify-center text-sm text-gray-400 text-center px-6">
+              Bu ürün için henüz yeterli fiyat geçmişi veya tahmin
+              verisi bulunmuyor.
+            </div>
+          ) : (
+            <EChartsView
+              option={option}
+              style={{ height: 340, width: "100%" }}
+              notMerge
+            />
+          )}
+
+          {/* Özet: dönem içi en düşük / en yüksek fiyat (yan yana) */}
+          {hasData && periodMin > 0 && (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-3 bg-[#F5F5F0] rounded-xl p-3.5">
+                <div className="w-9 h-9 rounded-full bg-[#EBF5F0] flex items-center justify-center shrink-0">
+                  <ArrowDown size={18} className="text-[#52B788]" />
+                </div>
+                <div>
+                  <div className="text-[11px] text-gray-500">
+                    Dönem içi en düşük
+                  </div>
+                  <div className="text-[16px] font-bold text-[#1A1A1A]">
+                    {fmtTL(periodMin)}
+                  </div>
+                </div>
+>>>>>>> f94959a1e4629dc61ed8fee8fcf548f08dd3abb5
               </div>
 
               {!hasData ? (
