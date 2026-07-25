@@ -205,6 +205,23 @@ export function ProfilePage({
         onboardingCompleted: true,
       });
 
+      try {
+        await fetch(`http://localhost:8000/profile/${user.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            full_name: form.fullName.trim(),
+            skin_type: form.skinTypeName || null,
+            hair_type: form.hairTypeName || null,
+            skin_concerns: form.skinConcernNames,
+            min_budget: form.minBudget ? Number(form.minBudget) : null,
+            max_budget: form.maxBudget ? Number(form.maxBudget) : null,
+          })
+        });
+      } catch (backendErr) {
+        console.error("Backend profile sync error:", backendErr);
+      }
+
       toast.success("Profil tercihleri kaydedildi.");
     } catch (error: any) {
       console.error("Profil kaydı başarısız:", error);

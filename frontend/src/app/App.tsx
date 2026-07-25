@@ -342,14 +342,16 @@ export default function App() {
             onOpenChart={openChart}
           />
         )}
-        {!loading && activeTab === "chat" && (
-          <ChatPage
-            products={products}
-            onAddToCart={handleAddToCart}
-            cartItemIds={cartItemIds}
-            onNavigateToCart={() => setActiveTab("cart")}
-            user={user}
-          />
+        {!loading && (
+          <div style={{ display: activeTab === "chat" ? "block" : "none", height: "100%" }}>
+            <ChatPage
+              products={products}
+              onAddToCart={handleAddToCart}
+              cartItemIds={cartItemIds}
+              onNavigateToCart={() => setActiveTab("cart")}
+              user={user}
+            />
+          </div>
         )}
         {!loading && activeTab === "cart" && (
           <CartOptimizer items={cartItems} onRemoveItem={handleRemoveFromCart} />

@@ -106,9 +106,9 @@ def get_categories_map() -> dict:
 
         # Common user-facing Turkish synonyms -> category_id
         synonym_map = {
-            "nemlendirici": 27, "nem": 27, "moisturizer": 27,
+            "nemlendirici": 27, "moisturizer": 27, "yüz kremi": 27, "yüz nemlendiricisi": 27,
             "serum": 30, "yüz serumu": 30,
-            "güneş kremi": 25, "spf": 25, "güneş koruyucu": 25,
+            "güneş kremi": 25, "spf": 25, "güneş koruyucu": 25, "güneş losyonu": 25,
             "fondöten": 8, "foundation": 8,
             "ruj": 20, "lipstick": 20,
             "likit ruj": 21,
@@ -119,21 +119,18 @@ def get_categories_map() -> dict:
             "allık": 10, "blush": 10,
             "pudra": 14,
             "kapatıcı": 9, "concealer": 9,
-            "tonik": 24, "toner": 24, "temizleyici": 24, "temizleme": 24,
+            "tonik": 24, "toner": 24, "temizleyici": 24, "temizleme": 24, "yüz temizleme": 24,
             "maske": 29, "yüz maskesi": 29,
             "peeling": 31,
-            "dudak": 7, "dudak bakım": 32,
-            "göz bakım": 33, "göz kremi": 33,
+            "dudak": [32, 23, 7, 20], "dudak bakım": [32, 23, 7], "dudak kremi": [32, 23], "dudak nemlendiricisi": [32, 23], "dudak nemlendirici": [32, 23], "dudak balamı": [32, 23], "balm": [32, 23],
+            "göz bakım": 33, "göz kremi": 33, "göz çevresi": 33, "göz nemlendirici": 33, "göz nemlendiricisi": 33,
             "şampuan": 34, "sampuan": 34,
-            "saç kremi": 35, "saç bakım": 36,
+            "saç kremi": 35, "saç bakım": 36, "saç maskesi": 36, "saç yağı": 36,
             "roll on": 37, "deodorant": 37,
             "highlighter": 11, "aydınlatıcı": 11,
             "bronzer": 13,
             "makyaj bazı": 15, "primer": 15,
             "bb krem": 12, "cc krem": 12,
-            "dudak kalemi": 22, "lip liner": 22,
-            "dudak parlatıcı": 23, "lip gloss": 23,
-            "yaşlanma karşıtı": 28, "anti aging": 28, "kırışıklık": 28,
         }
         KEYWORD_CATEGORY_MAP.update(synonym_map)
     except Exception as e:
@@ -148,16 +145,36 @@ def get_market_name(m_id: int) -> str:
 
 
 def find_matching_category_ids(user_message: str) -> list:
+    import re
     get_categories_map()
     message_lower = user_message.lower()
     matched_ids = []
     sorted_keywords = sorted(KEYWORD_CATEGORY_MAP.keys(), key=len, reverse=True)
 
     for keyword in sorted_keywords:
-        if keyword in message_lower:
-            cat_id = KEYWORD_CATEGORY_MAP[keyword]
-            if cat_id not in matched_ids:
-                matched_ids.append(cat_id)
+        if len(keyword) <= 4:
+            if not re.search(r'\b' + re.escape(keyword) + r'\b', message_lower):
+                continue
+        else:
+            if keyword not in message_lower:
+                continue
+
+        cat_val = KEYWORD_CATEGORY_MAP[keyword]
+        if isinstance(cat_val, list):
+            for cid in cat_val:
+                if cid not in matched_ids:
+                    matched_ids.append(cid)
+        else:
+            if cat_val not in matched_ids:
+                matched_ids.append(cat_val)
+
+    # Specific area categories (Dudak Bakım, Göz Bakım, Saç Bakım, Güneş Kremi, Makyaj vb.)
+    specific_categories = {32, 33, 34, 35, 36, 25, 20, 21, 22, 23, 7, 16, 17, 18, 19, 8, 9, 10, 11, 12, 13, 14, 15, 37}
+
+    # If any specific area category matched, remove generic face moisturizer (27) unless "yüz nemlendirici" was explicitly in message
+    if any(cid in specific_categories for cid in matched_ids) and 27 in matched_ids:
+        if "yüz nemlendirici" not in message_lower and "yüz kremi" not in message_lower:
+            matched_ids.remove(27)
 
     return matched_ids
 
@@ -203,6 +220,9 @@ def load_onboarding_lookups():
 # In-memory profiles fallback cache for unauthenticated/test UUIDs or RLS bypass
 IN_MEMORY_PROFILES: Dict[str, dict] = {}
 
+# Global reverse lookup maps
+SKIN_TYPES_BY_ID = {1: "normal", 2: "kuru", 3: "yağlı", 4: "karma", 5: "hassas"}
+HAIR_TYPES_BY_ID = {1: "normal", 2: "kuru", 3: "yağlı", 4: "boyalı", 5: "ince telli", 6: "kalın telli", 7: "kıvırcık", 8: "kepekli"}
 
 def get_user_profile(user_id: str):
     """
@@ -212,8 +232,10 @@ def get_user_profile(user_id: str):
     if not is_valid_uuid(user_id):
         raise ValueError(f"Invalid user_id for Supabase profile lookup: {user_id}")
 
+    memory_prof = IN_MEMORY_PROFILES.get(user_id, {})
+
     if not supabase_client:
-        return IN_MEMORY_PROFILES.get(user_id)
+        return memory_prof if memory_prof else None
         
     try:
         # Query user profile with join on skin_types and hair_types
@@ -235,15 +257,26 @@ def get_user_profile(user_id: str):
             skin_type_name = profile_row.get("skin_types", {}).get("name") if profile_row.get("skin_types") else None
             hair_type_name = profile_row.get("hair_types", {}).get("name") if profile_row.get("hair_types") else None
 
+            # Fallback to ID lookup if join returned None
+            if not skin_type_name and profile_row.get("skin_type_id"):
+                skin_type_name = SKIN_TYPES_BY_ID.get(int(profile_row.get("skin_type_id")))
+            if not hair_type_name and profile_row.get("hair_type_id"):
+                hair_type_name = HAIR_TYPES_BY_ID.get(int(profile_row.get("hair_type_id")))
+
+            # Merge with memory fallback if DB values are missing
+            final_skin_type = (skin_type_name.lower() if skin_type_name else None) or memory_prof.get("skin_type")
+            final_hair_type = (hair_type_name.lower() if hair_type_name else None) or memory_prof.get("hair_type")
+            final_concerns = concerns if concerns else memory_prof.get("skin_concerns", [])
+
             profile = {
                 "user_id": user_id,
-                "full_name": profile_row.get("full_name") or "User",
-                "skin_type": skin_type_name.lower() if skin_type_name else None,
-                "hair_type": hair_type_name.lower() if hair_type_name else None,
-                "skin_concerns": concerns,
-                "min_budget": profile_row.get("min_budget"),
-                "max_budget": profile_row.get("max_budget"),
-                "onboarding_completed": profile_row.get("onboarding_completed", False),
+                "full_name": profile_row.get("full_name") or memory_prof.get("full_name") or "User",
+                "skin_type": final_skin_type,
+                "hair_type": final_hair_type,
+                "skin_concerns": final_concerns,
+                "min_budget": profile_row.get("min_budget") or memory_prof.get("min_budget"),
+                "max_budget": profile_row.get("max_budget") or memory_prof.get("max_budget"),
+                "onboarding_completed": True if final_skin_type and final_hair_type else profile_row.get("onboarding_completed", False),
             }
             IN_MEMORY_PROFILES[user_id] = profile
             return profile
@@ -335,12 +368,13 @@ def update_user_profile(user_id: str, profile_data: dict):
         return new_profile
 
 
-def search_products_by_keyword(user_message: str, match_count: int = 3):
+def search_products_by_keyword(user_message: str, match_count: int = 3, exclude_ids: list = None):
     if not supabase_client:
         return []
 
     try:
         category_ids = find_matching_category_ids(user_message)
+        exclude_str_ids = [str(x) for x in (exclude_ids or [])]
 
         if category_ids:
             products_response = (
@@ -348,7 +382,7 @@ def search_products_by_keyword(user_message: str, match_count: int = 3):
                 .table("products")
                 .select("id, brand_id, category_id, universal_name, image_url")
                 .in_("category_id", category_ids)
-                .limit(match_count)
+                .limit(100)
                 .execute()
             )
         else:
@@ -356,17 +390,30 @@ def search_products_by_keyword(user_message: str, match_count: int = 3):
                 supabase_client
                 .table("products")
                 .select("id, brand_id, category_id, universal_name, image_url")
-                .limit(match_count)
+                .limit(100)
                 .execute()
             )
 
-        if not products_response.data:
+        raw_products = products_response.data or []
+        if not raw_products:
             return []
+
+        if exclude_str_ids:
+            filtered = [p for p in raw_products if str(p["id"]) not in exclude_str_ids]
+            if filtered:
+                raw_products = filtered
+
+        msg_lower = user_message.lower()
+        if any(k in msg_lower for k in ["farklı", "başka", "değişik", "diğer", "yeni"]) or exclude_str_ids:
+            import random
+            random.shuffle(raw_products)
+
+        raw_products = raw_products[:match_count]
 
         markets = get_markets_map()
         result = []
 
-        for product in products_response.data:
+        for product in raw_products:
             store_response = (
                 supabase_client
                 .table("store_mappings")
@@ -612,24 +659,29 @@ def match_products(query_embedding: list, match_threshold: float = 0.15, match_c
     return []
 
 
-def search_products_by_profile(profile: dict, user_message: str, match_count: int = 3) -> list:
+def search_products_by_profile(
+    profile: dict,
+    user_message: str,
+    match_count: int = 3,
+    exclude_ids: list = None,
+    allow_out_of_stock: bool = False,
+    store_name: str = None
+) -> list:
     """
     Finds products that match the user's skin/hair profile and query category.
-    Falls back to category keyword search if no profile match or table is empty.
+    Supports exclude_ids for dynamic rotation and allow_out_of_stock for stock filtering.
     """
     if not supabase_client:
-        return search_products_by_keyword(user_message, match_count)
+        return search_products_by_keyword(user_message, match_count, exclude_ids=exclude_ids)
 
     try:
         load_onboarding_lookups()
+        get_categories_map()
+
+        exclude_str_ids = [str(x) for x in (exclude_ids or [])]
 
         # 1. Identify category from user message
         category_ids = find_matching_category_ids(user_message)
-        print("DEBUG category_ids:", category_ids)
-        print("=" * 60)
-        print("User message:", user_message)
-        print("Matched category ids:", category_ids)
-        print("=" * 60)
 
         if not category_ids:
             return []
@@ -637,64 +689,55 @@ def search_products_by_profile(profile: dict, user_message: str, match_count: in
         # 2. Get profile IDs
         skin_type_str = (profile.get("skin_type") or "").lower()
         hair_type_str = (profile.get("hair_type") or "").lower()
-        skin_concerns_list = [c.lower() for c in profile.get("skin_concerns", [])]
 
         skin_type_id = SKIN_TYPES_LOOKUP.get(skin_type_str)
         hair_type_id = HAIR_TYPES_LOOKUP.get(hair_type_str)
 
         matched_p_ids = set()
 
-        # 3. Filter products matching skin type
         if skin_type_id:
             res = supabase_client.table("product_skin_types").select("product_id").eq("skin_type_id", skin_type_id).execute()
             if res.data:
                 matched_p_ids.update(row["product_id"] for row in res.data)
 
-        # 4. Filter products matching hair type (if hair product category)
         if hair_type_id:
             res = supabase_client.table("product_hair_types").select("product_id").eq("hair_type_id", hair_type_id).execute()
             if res.data:
-                # If we already have skin matching products, intersect; otherwise add
                 ht_pids = set(row["product_id"] for row in res.data)
                 if matched_p_ids:
-                    # Only intersect if we are searching hair care category
-                    # categories 34, 35, 36 are hair categories in synonym map
                     is_hair_query = any(cid in [34, 35, 36] for cid in category_ids)
                     if is_hair_query:
                         matched_p_ids.intersection_update(ht_pids)
                 else:
                     matched_p_ids.update(ht_pids)
 
-        # 5. Fetch products from DB
+        # 3. Fetch up to 100 candidate products from DB
         query = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").in_("category_id", category_ids)
         
         if matched_p_ids:
             query = query.in_("id", list(matched_p_ids))
             
-        products_response = query.limit(match_count).execute()
-        print("=" * 60)
-        print("User message:", user_message)
-        print("Matched category ids:", category_ids)
-        print("Returned products:")
+        products_response = query.limit(100).execute()
+        raw_products = products_response.data or []
 
-        for product in products_response.data or []:
-            print(
-                product.get("universal_name"),
-                "| category_id:",
-                product.get("category_id")
-            )
+        # If no profile-matched products, fetch general category candidates
+        if not raw_products:
+            gen_query = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").in_("category_id", category_ids).limit(100).execute()
+            raw_products = gen_query.data or []
 
-        print("=" * 60)
+        if not raw_products:
+            return []
 
-
-        # If no profile-matched products found, fallback to pure category search
-        if not products_response.data or len(products_response.data) == 0:
-            return search_products_by_keyword(user_message, match_count)
+        # Exclude previously shown products if exclude_ids specified
+        if exclude_str_ids:
+            filtered = [p for p in raw_products if str(p["id"]) not in exclude_str_ids]
+            if filtered:
+                raw_products = filtered
 
         markets = get_markets_map()
         result = []
 
-        for product in products_response.data:
+        for product in raw_products:
             store_response = supabase_client.table("store_mappings").select("*").eq("p_id", product["id"]).execute()
             stores = store_response.data if store_response.data else []
 
@@ -702,15 +745,45 @@ def search_products_by_profile(profile: dict, user_message: str, match_count: in
                 store["market_name"] = markets.get(store.get("m_id"), f"Mağaza #{store.get('m_id')}")
             stores.sort(key=lambda s: s.get("current_price") or 99999)
 
+            valid_prices = [
+                float(s["current_price"]) for s in stores
+                if s.get("current_price") is not None and float(s["current_price"]) > 0
+            ]
+
+            lowest_price = min(valid_prices) if valid_prices else None
+
+            # Out of stock filter check
+            if not allow_out_of_stock and lowest_price is None:
+                # Unless allow_out_of_stock is requested, prioritize products with valid prices
+                pass
+
             product["store_mappings"] = stores
             product["category_name"] = CATEGORIES_MAP.get(product.get("category_id"), "Bilinmiyor")
+            product["lowest_price"] = lowest_price
+            product["is_out_of_stock"] = lowest_price is None
             result.append(product)
 
-        return result
+        # Check if user explicitly wants out-of-stock products
+        msg_lower = user_message.lower()
+        wants_out_of_stock = "stok dışı" in msg_lower or "stokta olmayan" in msg_lower or "stokta yok" in msg_lower
+        
+        if wants_out_of_stock:
+            # Filter for out of stock products
+            out_of_stock_prods = [p for p in result if p["is_out_of_stock"]]
+            if out_of_stock_prods:
+                result = out_of_stock_prods
+
+        # Dynamic rotation / shuffling if user asked for "farklı", "başka", "değişik", "diğer"
+        wants_different = any(k in msg_lower for k in ["farklı", "başka", "değişik", "diğer", "yeni"])
+        if wants_different or exclude_str_ids:
+            import random
+            random.shuffle(result)
+
+        return result[:match_count]
 
     except Exception as e:
         print(f"Profile-based product search failed: {e}. Falling back to category search...")
-        return search_products_by_keyword(user_message, match_count)
+        return search_products_by_keyword(user_message, match_count, exclude_ids=exclude_ids)
 
 
 def get_product_by_id(product_id: int) -> Optional[dict]:

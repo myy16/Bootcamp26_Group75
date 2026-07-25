@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, ShoppingBag, Check, TrendingDown, Clock, ChevronRight, User } from 'lucide-react';
+import { Send, Sparkles, ShoppingBag, Check, TrendingDown, Clock, ChevronRight, User, RotateCcw } from 'lucide-react';
 import { STORE_COLORS, Product, getCheapestStore, StoreName } from '../data';
 import { sendChatMessage, getUserProfile, clearSession } from '../chatApi';
 import { saveUserProfile } from '../profileApi';
@@ -25,10 +25,21 @@ const SKIN_TYPES = ['Kuru', 'Yağlı', 'Karma', 'Hassas', 'Normal'];
 const HAIR_TYPES = ['Kuru', 'Yağlı', 'Normal', 'Boyalı', 'İnce Telli', 'Kalın Telli', 'Kıvırcık', 'Kepekli'];
 const CONCERNS = ['Akne', 'Leke', 'Kuruluk', 'Siyah Nokta', 'Kızarıklık', 'Yaşlanma Karşıtı'];
 
+// Helper to normalize store name to StoreName enum
+const normalizeStoreName = (name: string): StoreName => {
+  if (!name) return "Gratis";
+  const lower = name.toLowerCase().trim();
+  if (lower.includes("gratis")) return "Gratis";
+  if (lower.includes("watsons")) return "Watsons";
+  if (lower.includes("rossmann")) return "Rossmann";
+  if (lower.includes("mion")) return "Mion";
+  return "Gratis";
+};
+
 // Helper to map backend product to frontend Product interface
 const mapBackendProductToFrontend = (bp: any): Product => {
   const storesData = (bp.store_mappings || []).map((sm: any) => ({
-    name: (sm.market_name || "Gratis") as StoreName,
+    name: normalizeStoreName(sm.market_name || sm.market || "Gratis"),
     price: Number(sm.current_price) || 0,
   }));
 
@@ -37,15 +48,165 @@ const mapBackendProductToFrontend = (bp: any): Product => {
     storesData.push({ name: "Gratis" as StoreName, price: 0 });
   }
 
+  const categoryFallbackImages: Record<string, string> = {
+    "Nemlendirici": "https://images.unsplash.com/photo-1608248597262-8380268fe5e1?auto=format&fit=crop&w=300&q=80",
+    "Serum": "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=300&q=80",
+    "Güneş Kremi": "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?auto=format&fit=crop&w=300&q=80",
+    "Temizleyici": "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=300&q=80",
+  };
+
+  const defaultImg = categoryFallbackImages[bp.category_name] || "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=300&q=80";
+
   return {
-    id: bp.id.toString(),
-    image: bp.image_url || "https://images.unsplash.com/photo-1746227638992-50b1e1e0d96b?auto=format&fit=crop&w=300&q=80",
-    brand: bp.brand?.name || bp.brand_name || "Marka",
-    title: bp.universal_name || "İsimsiz Ürün",
-    category: bp.category_name || "Genel",
+    id: (bp.id || Math.random()).toString(),
+    image: bp.image_url && bp.image_url.startsWith("http") ? bp.image_url : defaultImg,
+    brand: bp.brand?.name || bp.brand_name || bp.brand || "Beautrics",
+    title: bp.universal_name || bp.title || "Önerilen Bakım Ürünü",
+    category: bp.category_name || bp.category || "Cilt Bakımı",
     stores: storesData,
   };
 };
+
+function renderInlineMarkdown(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+
+  // Match bold text **bold** or markdown links [text](url)
+  const regex = /(\*\*.*?\*\*)|(\[.*?\]\(.*?\))/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+
+    const matchedStr = match[0];
+    if (matchedStr.startsWith('**') && matchedStr.endsWith('**')) {
+      const boldText = matchedStr.slice(2, -2);
+      parts.push(
+        <strong key={`bold-${match.index}`} style={{ fontWeight: 700, color: '#1B4332' }}>
+          {boldText}
+        </strong>
+      );
+    } else if (matchedStr.startsWith('[') && matchedStr.includes('](')) {
+      const linkMatch = /\[(.*?)\]\((.*?)\)/.exec(matchedStr);
+      if (linkMatch) {
+        const linkText = linkMatch[1];
+        const linkUrl = linkMatch[2];
+        parts.push(
+          <a
+            key={`link-${match.index}`}
+            href={linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#2D6A4F',
+              fontWeight: 600,
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 3,
+              background: '#E8F5E9',
+              padding: '2px 8px',
+              borderRadius: 6,
+              fontSize: '0.92em',
+              border: '1px solid #A3E635'
+            }}
+          >
+            {linkText} ↗
+          </a>
+        );
+      }
+    }
+
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}
+
+function FormattedMessageContent({ content }: { content: string }) {
+  if (!content) return null;
+
+  const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Detect Markdown Table (starts and ends with |)
+    if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+      const tableRows: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+        tableRows.push(lines[i].trim());
+        i++;
+      }
+
+      if (tableRows.length >= 2) {
+        const headers = tableRows[0].split('|').filter((_, idx, arr) => idx > 0 && idx < arr.length - 1).map(s => s.trim());
+        const dataRows = tableRows.slice(2).map(row =>
+          row.split('|').filter((_, idx, arr) => idx > 0 && idx < arr.length - 1).map(s => s.trim())
+        );
+
+        elements.push(
+          <div key={`table-${i}`} style={{ overflowX: 'auto', margin: '10px 0' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: 8, overflow: 'hidden', border: '1px solid #C8E6C9', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#2D6A4F', color: '#FFFFFF' }}>
+                  {headers.map((h, idx) => (
+                    <th key={idx} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dataRows.map((r, rIdx) => (
+                  <tr key={rIdx} style={{ background: rIdx % 2 === 0 ? '#FFFFFF' : '#F4F9F5', borderBottom: '1px solid #E8F5E9' }}>
+                    {r.map((cell, cIdx) => (
+                      <td key={cIdx} style={{ padding: '8px 10px', color: '#1A1A1A' }}>
+                        {renderInlineMarkdown(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
+    }
+
+    // Normal paragraph line or list item
+    const trimmed = line.trim();
+    if (trimmed !== '') {
+      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        const itemText = trimmed.slice(2);
+        elements.push(
+          <div key={`list-${i}`} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', marginBottom: 4 }}>
+            <span style={{ color: '#2D6A4F', fontWeight: 700 }}>•</span>
+            <div>{renderInlineMarkdown(itemText)}</div>
+          </div>
+        );
+      } else {
+        elements.push(
+          <div key={`p-${i}`} style={{ marginBottom: i < lines.length - 1 ? 4 : 0 }}>
+            {renderInlineMarkdown(line)}
+          </div>
+        );
+      }
+    } else {
+      elements.push(<div key={`br-${i}`} style={{ height: 4 }} />);
+    }
+    i++;
+  }
+
+  return <div>{elements}</div>;
+}
 
 function TypingIndicator() {
   return (
@@ -396,11 +557,6 @@ function ProductListCard({ products, cartItemIds, onAddToCart }: { products: Pro
 }
 
 export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: ChatPageProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputVal, setInputVal] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
   // Generate or retrieve a persistent test user UUID if not logged in
   const getUserId = () => {
     if (user?.id) return user.id;
@@ -414,16 +570,49 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
 
   const userId = getUserId();
   const sessionId = "session-v2";
+  const storageKey = `beautrics_chat_messages_${userId}`;
 
-  // Initial Load: Check profile and greeting
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error("Error reading saved chat messages:", e);
+    }
+    return [];
+  });
+  const [inputVal, setInputVal] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Sync messages to localStorage
+  useEffect(() => {
+    if (messages.length > 0) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(messages));
+      } catch (e) {
+        console.error("Error saving chat messages to localStorage:", e);
+      }
+    }
+  }, [messages, storageKey]);
+
+  // Initial Load: Check profile and greeting (preserves existing conversation when switching tabs)
   useEffect(() => {
     async function initChat() {
+      if (messages.length > 0) return; // Keep existing messages when switching tabs
+      
       setIsLoading(true);
       try {
-        // Clear old sessions on reload to start fresh
-        await clearSession(userId, sessionId);
-
         const profile = await getUserProfile(userId);
+        const hasCompletedLocal = localStorage.getItem("beautrics_onboarding_completed") === "true";
+        const hasCompletedProfile = Boolean(profile && profile.onboarding_completed);
+        const hasFullProfile = Boolean(profile?.skin_type && profile?.hair_type);
+        const isCompleted = hasCompletedLocal || hasCompletedProfile || hasFullProfile;
         
         const welcomeMessage: Message = {
           id: 'welcome',
@@ -431,7 +620,7 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
           content: 'Merhaba! 👋 Ben Beautrics Kişisel Bakım Asistanıyım. Sana özel bir cilt bakım rutini oluşturmak ve 4 farklı mağazada fiyatları karşılaştırmak için buradayım.'
         };
 
-        if (!profile || !profile.skin_type || !profile.hair_type) {
+        if (!isCompleted) {
           // Profile is missing, ask for onboarding
           setMessages([
             welcomeMessage,
@@ -444,30 +633,22 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
           ]);
         } else {
           // Profile complete, greet with current profile context
-          const skin = profile.skin_type || 'belirtilmedi';
-          const hair = profile.hair_type || 'belirtilmedi';
-          const concerns = profile.skin_concerns && profile.skin_concerns.length > 0 
-            ? `, Cilt Problemleri: ${profile.skin_concerns.join(', ')}` 
-            : '';
-
           setMessages([
             welcomeMessage,
             {
               id: 'profile-greet',
               role: 'assistant',
-              content: `Profilinizi kontrol ettim: \n- Cilt Tipi: **${skin}**\n- Saç Tipi: **${hair}**${concerns}\n\nSize nasıl yardımcı olabilirim? Örneğin *"Bana nemlendirici önerir misin?"* diye sorabilirsiniz.`
+              content: `Önerilerimi profil bilgilerinize göre sizin için özelleştiriyorum. Özel bir ihtiyacınız veya aradığınız belirli bir ürün varsa bana yazabilirsiniz.`
             }
           ]);
         }
       } catch (err) {
         console.error("Chat init error:", err);
-        // Fallback message
         setMessages([
           {
             id: 'err-welcome',
             role: 'assistant',
-            content: 'Merhaba! Bağlantı kurulamadı ancak ben her an yardıma hazırım. Cilt tipinizi belirterek ürün aramaya başlayabilirsiniz! 🌱',
-            isOnboarding: true
+            content: 'Merhaba! Cilt tipinizi belirterek veya soru sorarak ürün aramaya başlayabilirsiniz! 🌱'
           }
         ]);
       } finally {
@@ -477,6 +658,27 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
 
     initChat();
   }, [userId]);
+
+  const handleResetChat = async () => {
+    setIsLoading(true);
+    try {
+      await clearSession(userId, sessionId);
+      localStorage.removeItem(storageKey);
+      const resetWelcome: Message[] = [
+        {
+          id: `welcome-${Date.now()}`,
+          role: 'assistant',
+          content: 'Sohbet geçmişi ve ürün hafızası temizlendi. 👋 Nasıl yardımcı olabilirim?'
+        }
+      ];
+      setMessages(resetWelcome);
+      localStorage.setItem(storageKey, JSON.stringify(resetWelcome));
+    } catch (err) {
+      console.error("Error clearing session:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -508,7 +710,7 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
           role: 'assistant',
           content: data.response,
           products: productsMapped,
-          isOnboarding: data.missing_fields.length > 0
+          isOnboarding: false
         }
       ]);
     } catch (err) {
@@ -527,8 +729,11 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
   };
 
   const handleSaveOnboarding = async (skinType: string, hairType: string, selectedConcerns: string[]) => {
-    if (user?.id) {
-      try {
+    localStorage.setItem("beautrics_onboarding_completed", "true");
+    const activeUserId = getUserId();
+    
+    try {
+      if (user?.id) {
         await saveUserProfile(user.id, {
           fullName: user.user_metadata?.full_name || '',
           currentEmail: user.email || undefined,
@@ -537,9 +742,22 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
           skinConcernNames: selectedConcerns,
           onboardingCompleted: true,
         });
-      } catch (error) {
-        console.error('Onboarding profile save error:', error);
       }
+
+      await fetch(`http://localhost:8000/profile/${activeUserId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: user?.user_metadata?.full_name || 'Kullanıcı',
+          skin_type: skinType,
+          hair_type: hairType,
+          skin_concerns: selectedConcerns,
+          min_budget: null,
+          max_budget: null
+        })
+      });
+    } catch (error) {
+      console.error('Onboarding profile save error:', error);
     }
 
     // Construct message payload to submit onboarding selections
@@ -552,6 +770,7 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
   };
 
   const handleSkipOnboarding = () => {
+    localStorage.setItem("beautrics_onboarding_completed", "true");
     setMessages(prev => prev.map(m => m.isOnboarding ? { ...m, isOnboarding: false } : m));
     setMessages(prev => [
       ...prev,
@@ -589,6 +808,28 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
             Çevrimiçi · 4 mağazada fiyat karşılaştırılıyor
           </div>
         </div>
+
+        <button
+          onClick={handleResetChat}
+          title="Sohbeti ve hafızayı temizle"
+          style={{
+            marginLeft: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '7px 14px',
+            borderRadius: 8,
+            border: '1px solid #D5D5CF',
+            background: '#FFFFFF',
+            color: '#555',
+            cursor: 'pointer',
+            fontSize: 12.5,
+            fontWeight: 500,
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <RotateCcw size={14} /> Sohbeti Sıfırla
+        </button>
       </div>
 
       {/* Messages area */}
@@ -630,7 +871,7 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
                     whiteSpace: 'pre-wrap'
                   }}
                 >
-                  {m.content}
+                  <FormattedMessageContent content={m.content} />
                 </div>
 
                 {m.isOnboarding && (

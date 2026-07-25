@@ -31,13 +31,13 @@ const NAV_ITEMS = [
   { id: "home" as ActiveTab, label: "Anasayfa", icon: Home },
   {
     id: "chat" as ActiveTab,
-    label: "AI Asistan",
+    label: "AI Asistanım",
     icon: MessageCircle,
     isAI: true,
   },
   {
     id: "cart" as ActiveTab,
-    label: "Sepet Optimizasyonu",
+    label: "Sepetim",
     icon: ShoppingBag,
   },
   {
