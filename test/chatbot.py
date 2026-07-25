@@ -303,42 +303,7 @@ def build_product_response(products: list) -> str:
     if not products:
         return "Bütçenize ve profilinize uygun ürün bulunamadı."
 
-    lines = ["Profilinize ve bütçenize uygun ürünler:"]
-
-    for product in products[:3]:
-        product_name = product.get("universal_name", "Ürün")
-        stores = product.get("store_mappings", [])
-
-        valid_stores = [
-            store
-            for store in stores
-            if store.get("current_price") is not None
-            and float(store.get("current_price", 0)) > 0
-        ]
-
-        if valid_stores:
-            cheapest_store = min(
-                valid_stores,
-                key=lambda store: float(store["current_price"]),
-            )
-
-            market_name = cheapest_store.get(
-                "market_name",
-                "Bilinmeyen mağaza",
-            )
-            price = cheapest_store.get("current_price")
-            url = cheapest_store.get("product_url", "#")
-
-            lines.append(
-                f"- {product_name}: {market_name} mağazasında "
-                f"{price} TL — [Satın Al]({url})"
-            )
-        else:
-            lines.append(
-                f"- {product_name}: Güncel fiyat bilgisi bulunamadı."
-            )
-
-    return "\n".join(lines)
+    return "Profilinize ve bütçenize en uygun ürünleri sizin için aşağıda hazırladım. Mağaza ve fiyat detaylarını kart üzerinden inceleyebilirsiniz."
 
 # === Graph Nodes ===
 
@@ -377,6 +342,16 @@ def fetch_profile_node(state: AgentState):
 
     # Re-fetch profile after potential update
     profile = get_user_profile(user_id) or {}
+
+    # If skin_type or hair_type is missing, but user is asking for product recommendations/alternatives,
+    # supply sensible defaults ("normal") so user is never trapped in onboarding loop.
+    intent = determine_intent(last_msg) if last_msg else "general"
+    if (not profile.get("skin_type") or not profile.get("hair_type")) and (intent in ("recommendation", "alternative", "store_compare") or "atlandı" in (last_msg or "").lower()):
+        profile["skin_type"] = profile.get("skin_type") or "normal"
+        profile["hair_type"] = profile.get("hair_type") or "normal"
+        profile["skin_concerns"] = profile.get("skin_concerns") or []
+        update_user_profile(user_id, profile)
+
     required = ["skin_type", "hair_type"]
     missing = [f for f in required if not profile.get(f)]
 
@@ -513,22 +488,29 @@ def vector_rag_node(state: AgentState):
         except Exception as emb_err:
             print(f"Vector search failed or not configured: {emb_err}")
 
-        # 2. Fallback to profile-based category search
+        # Collect previously recommended product IDs for dynamic rotation
+        previously_recommended = state.last_recommended_products or []
+        exclude_ids = [p["id"] for p in previously_recommended if "id" in p]
+
+        msg_lower = (last_msg or "").lower()
+        wants_out_of_stock = "stok dışı" in msg_lower or "stokta olmayan" in msg_lower or "stokta yok" in msg_lower
+
+        # 2. Fallback to profile-based category search with dynamic rotation & stock filter
         if not matched_products:
             matched_products = search_products_by_profile(
-                profile, last_msg, match_count=3,
+                profile, last_msg, match_count=3, exclude_ids=exclude_ids, allow_out_of_stock=wants_out_of_stock
             )
 
         # 3. Fallback to keyword search
         if not matched_products:
             matched_products = search_products_by_keyword(
-                last_msg, match_count=3,
+                last_msg, match_count=3, exclude_ids=exclude_ids
             )
 
         # 4. Fallback to general skincare products
         if not matched_products:
             matched_products = search_products_by_keyword(
-                "cilt bakım", match_count=3,
+                "cilt bakım", match_count=3, exclude_ids=exclude_ids
             )
 
         # 5. Bütçe filtresi uygula
@@ -561,16 +543,11 @@ def vector_rag_node(state: AgentState):
             "Sen Beautrics kozmetik danışmanısın. "
             "Kullanıcının profiline uygun ürün önerisi yap.\n\n"
             "KATI KURALLAR:\n"
-            "1. SADECE aşağıdaki ürün listesindeki ürünleri öner. "
-            "Listede olmayan ürün ekleme.\n"
-            "2. Maksimum 3 ürün öner.\n"
-            "3. Her ürün için isim, mağaza, fiyat ve satın alma linkini yaz.\n"
-            "4. En ucuz seçeneği belirt.\n"
-            "5. Fiyatı 0 TL olan ürünler stokta olmayabilir; bunu belirt.\n"
-            "6. Emoji kullanma.\n"
-            "7. Kısa ve net cevap ver; en fazla 200 kelime kullan.\n"
-            "8. Ürünler hakkında uydurma bilgi verme.\n"
-            "9. Satın alma linklerini [Satın Al](url) formatında ekle.\n\n"
+            "1. Kullanıcıya özel kısa, nazik ve yönlendirici 1-2 cümlelik bir giriş cümlesi yaz.\n"
+            "2. Ürün isimlerini veya linklerini metin içinde tekrar liste olarak yazma (ürünler alttaki interaktif kartta gösterilecek).\n"
+            "3. En ucuz seçeneğe veya kullanıcının aradığı kritere kısaca değinebilirsin.\n"
+            "4. Emoji kullanma.\n"
+            "5. En fazla 40 kelime kullan.\n\n"
             f"KULLANICI PROFİLİ:\n{profile_summary}\n\n"
             f"ÜRÜN LİSTESİ:\n{product_context}"
         )
@@ -728,12 +705,10 @@ def alternative_rag_node(state: AgentState):
             f"Sen Beautrics kozmetik danışmanısın. Kullanıcı '{ref_product_name}' ürününe alternatif arıyor."
             f"{store_context}{price_context}\n\n"
             "KATI KURALLAR:\n"
-            "1. SADECE aşağıdaki alternatif ürün listesindeki ürünleri öner.\n"
-            "2. Her ürün için isim, mağaza, fiyat ve satın alma linkini yaz.\n"
-            "3. Referans ürünle karşılaştırma yap (fiyat farkı, mağaza).\n"
-            "4. Emoji kullanma.\n"
-            "5. Kısa ve net cevap ver; en fazla 200 kelime kullan.\n"
-            "6. Ürünler hakkında uydurma bilgi verme.\n\n"
+            "1. Kullanıcıya özel kısa, nazik ve alternatifleri özetleyen 1-2 cümlelik bir giriş yaz.\n"
+            "2. Ürün isimlerini veya linklerini metin içinde tekrar liste olarak yazma (ürünler alttaki interaktif kartta gösterilecek).\n"
+            "3. Emoji kullanma.\n"
+            "4. En fazla 40 kelime kullan.\n\n"
             f"KULLANICI PROFİLİ:\n{profile_summary}\n\n"
             f"REFERANS ÜRÜN: {ref_product_name}\n\n"
             f"ALTERNATİF ÜRÜN LİSTESİ:\n{product_context}"
@@ -798,21 +773,22 @@ def route_after_profile(state: AgentState):
     if state.missing_fields:
         return "onboarding_fallback"
 
-    # 2. Profile was just completed with this message -> confirm only
-    if state.profile_just_completed:
-        return "profile_confirmed"
-
-    # 3. Profile is complete, determine intent
+    # Determine user intent first
     last_msg = get_last_user_message(state.messages)
-    intent = determine_intent(last_msg)
+    intent = determine_intent(last_msg) if last_msg else "general"
     print(f"Intent decision: {intent} | Message: {last_msg}")
 
+    # 2. If user asked for product recommendations / alternatives / store comparison, answer their query immediately!
     if intent in ("alternative", "store_compare"):
         return "alternative_rag"
     elif intent == "recommendation":
         return "vector_rag"
-    else:
-        return "general_chat"
+
+    # 3. If user's message was specifically updating their profile without asking for a product, confirm profile
+    if state.profile_just_completed:
+        return "profile_confirmed"
+
+    return "general_chat"
 
 
 workflow.add_conditional_edges(
