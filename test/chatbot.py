@@ -495,12 +495,19 @@ def vector_rag_node(state: AgentState):
 
         msg_lower = (last_msg or "").lower()
         wants_out_of_stock = "stok dışı" in msg_lower or "stokta olmayan" in msg_lower or "stokta yok" in msg_lower
+<<<<<<< HEAD
         target_store = detect_store_name(last_msg)
+=======
+>>>>>>> 183307c550005a497f9ff243c3b2146c882bc377
 
         # 2. Fallback to profile-based category search with dynamic rotation & stock filter
         if not matched_products:
             matched_products = search_products_by_profile(
+<<<<<<< HEAD
                 profile, last_msg, match_count=3, exclude_ids=exclude_ids, allow_out_of_stock=wants_out_of_stock, store_name=target_store
+=======
+                profile, last_msg, match_count=3, exclude_ids=exclude_ids, allow_out_of_stock=wants_out_of_stock
+>>>>>>> 183307c550005a497f9ff243c3b2146c882bc377
             )
 
         # 3. Fallback to keyword search
