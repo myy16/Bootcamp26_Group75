@@ -128,22 +128,27 @@ function getTitle(user: User | null, hasPersonalizedSlides = false): string {
   return 'Öne Çıkan Ürünler';
 }
 
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
 export function HeroCarousel({ products = [], user, userSkinTypeName, onOpenChart }: HeroCarouselProps) {
   const recommendationSlides = useMemo<RecommendationSlide[]>(() => {
+    // 1. En az 1 geçerli market fiyatı olan ürünleri filtrele
     const productsWithPrices = products.filter((product) => getCheapestValidStore(product) !== null);
+    
+    // 2. Kullanıcının cilt tipine uyanları ayır
     const personalizedProducts = productsWithPrices.filter((product) =>
       matchesSkinType(product, userSkinTypeName)
     );
     const selectedProducts = personalizedProducts.length > 0 ? personalizedProducts : productsWithPrices;
 
-    return selectedProducts
-      .slice()
-      .sort((a, b) => {
-        const aCheapest = getCheapestValidStore(a)?.price ?? Number.MAX_SAFE_INTEGER;
-        const bCheapest = getCheapestValidStore(b)?.price ?? Number.MAX_SAFE_INTEGER;
-
-        return aCheapest - bCheapest;
-      })
+    // 3. DEĞİŞİKLİK BURADA: Fiyata göre sıralamak yerine ürün listesini rastgele karıştırıyoruz!
+    return shuffleArray(selectedProducts)
       .slice(0, 6)
       .map((product, index) => {
         const style = SLIDE_STYLES[index % SLIDE_STYLES.length];
