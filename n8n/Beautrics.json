@@ -1,0 +1,205 @@
+{
+  "name": "dönemprojesi",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "watsons-data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        -64
+      ],
+      "id": "653ce61e-bb09-48af-be81-ecf84421badf",
+      "name": "Webhook",
+      "webhookId": "d40c1733-17e2-4634-bd89-bc52f769cec3"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "body",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        224,
+        -64
+      ],
+      "id": "95fb8fbd-f372-49ac-8182-a9a20b9537a7",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "store_mappings",
+        "limit": null,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "m_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.m_id }}"
+            },
+            {
+              "keyName": "store_product_name",
+              "condition": "eq",
+              "keyValue": "={{ $json.store_product_name }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        448,
+        -64
+      ],
+      "id": "3e01d0c2-d5e6-4da5-9074-c0574681ada7",
+      "name": "Get many rows",
+      "alwaysOutputData": false,
+      "credentials": {
+        "supabaseApi": {
+          "id": "A84xZLFBoxl1dI53",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "tableId": "price_log",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "p_id",
+              "fieldValue": "={{ $json.p_id }}"
+            },
+            {
+              "fieldId": "price",
+              "fieldValue": "={{ $('Split Out').item.json.price }}"
+            },
+            {
+              "fieldId": "m_id",
+              "fieldValue": "={{ $json.m_id }}"
+            },
+            {
+              "fieldId": "date",
+              "fieldValue": "={{ $today.format('yyyy-MM-dd') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        880,
+        -64
+      ],
+      "id": "8c7880ac-657d-422b-a064-63df24fad071",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "A84xZLFBoxl1dI53",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "09add32e-5f77-407e-8c32-bdb38d59ee4c",
+              "leftValue": "={{ $json.p_id }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        640,
+        -64
+      ],
+      "id": "1b9d0d8c-f166-47f7-b80c-4fa73b2b120e",
+      "name": "Filter"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Get many rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many rows": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "42ba0b7b-519e-4d06-a8c2-385a84b09bcf",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9f5491dc2c6d73ace1abb52aa062b4d0de6ec2c5f0b4a24d0ad8cfada05509ac"
+  },
+  "id": "4LLsDuz5izh2MHM5",
+  "tags": []
+}
