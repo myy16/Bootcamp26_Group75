@@ -132,20 +132,7 @@ function MiniPriceChart({
         })}
       </svg>
 
-      <div className="min-w-0">
-        <div
-          className="flex items-center gap-1.5 text-sm font-semibold"
-          style={{ color: chartColor }}
-        >
-          {isDown && <TrendingDown size={14} />}
-          {isUp && <TrendingUp size={14} />}
-          {/* <span>{statusText}</span> */}
-        </div>
-
-       
-
-        
-      </div>
+      
     </div>
   );
 }

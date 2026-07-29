@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Trash2,
   ShoppingBag,
@@ -7,18 +7,18 @@ import {
   Info,
   Share2,
   Heart,
+  Truck,
+  Store,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
-import {
-  Product,
-  getCheapestStore,
-  STORE_COLORS,
-  STORE_ORDER,
-  StoreName,
-} from "../data";
+import { Product, getCheapestStore, STORE_COLORS, STORE_ORDER, StoreName } from "../data";
 
 interface CartOptimizerProps {
   items: Product[];
   onRemoveItem: (id: string) => void;
+  // Supabase bağlantısı için miktar güncellemelerini dışarıya bildiren opsiyonel proplar ekledik:
+  onUpdateQuantity?: (id: string, newQuantity: number) => void;
 }
 
 interface BreakdownItem {
@@ -28,9 +28,17 @@ interface BreakdownItem {
   total: number;
 }
 
+// Marketlerin kargo ücretleri ve ücretsiz kargo eşik değerleri
+const MARKET_SHIPPING_INFO: Record<StoreName, { fee: number; threshold: number | null }> = {
+  Watsons: { fee: 74.90, threshold: null },
+  Gratis: { fee: 69.50, threshold: 150 }, // Örn: 150 TL üzeri kargo bedava
+  Mion: { fee: 54.90, threshold: null },
+  Rossmann: { fee: 69.90, threshold: null },
+};
+
 const formatPrice = (price: number) => {
   return price.toLocaleString("tr-TR", {
-    minimumFractionDigits: 0,
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 };
@@ -38,264 +46,194 @@ const formatPrice = (price: number) => {
 export function CartOptimizer({
   items,
   onRemoveItem,
+  onUpdateQuantity,
 }: CartOptimizerProps) {
-  const [quantities, setQuantities] = useState<Record<string, number>>(
-    () =>
-      Object.fromEntries(
-        items.map((product) => [product.id, 1]),
-      ),
+  // Alışveriş Modu: 'online' (Kargo hesaplanır) veya 'physical' (Kargolar 0 TL kabul edilir)
+  const [shoppingMode, setShoppingMode] = useState<"online" | "physical">("online");
+  const [activeOption, setActiveOption] = useState<"single" | "split">("split");
+
+  // Ürün miktarları (Supabase'den gelen initial quantity değerini de destekler)
+  const [quantities, setQuantities] = useState<Record<string, number>>(() =>
+    Object.fromEntries(items.map((product) => [product.id, product.quantity || 1]))
   );
 
-  const [activeOption, setActiveOption] = useState<
-    "single" | "split"
-  >("split");
-
   useEffect(() => {
-    setQuantities((previousQuantities) => {
-      const updatedQuantities = { ...previousQuantities };
-
+    setQuantities((prev) => {
+      const updated = { ...prev };
       items.forEach((product) => {
-        if (!updatedQuantities[product.id]) {
-          updatedQuantities[product.id] = 1;
+        if (!updated[product.id]) {
+          updated[product.id] = product.quantity || 1;
         }
       });
-
-      Object.keys(updatedQuantities).forEach((productId) => {
-        const productStillExists = items.some(
-          (product) => product.id === productId,
-        );
-
-        if (!productStillExists) {
-          delete updatedQuantities[productId];
-        }
+      Object.keys(updated).forEach((id) => {
+        if (!items.some((p) => p.id === id)) delete updated[id];
       });
-
-      return updatedQuantities;
+      return updated;
     });
   }, [items]);
 
-  const getQuantity = (productId: string) => {
-    return quantities[productId] || 1;
-  };
-
   const increaseQuantity = (productId: string) => {
-    setQuantities((previousQuantities) => ({
-      ...previousQuantities,
-      [productId]:
-        (previousQuantities[productId] || 1) + 1,
-    }));
+    const newQty = (quantities[productId] || 1) + 1;
+    setQuantities((prev) => ({ ...prev, [productId]: newQty }));
+    onUpdateQuantity?.(productId, newQty);
   };
 
   const decreaseQuantity = (productId: string) => {
-    setQuantities((previousQuantities) => ({
-      ...previousQuantities,
-      [productId]: Math.max(
-        1,
-        (previousQuantities[productId] || 1) - 1,
-      ),
-    }));
+    const current = quantities[productId] || 1;
+    if (current > 1) {
+      const newQty = current - 1;
+      setQuantities((prev) => ({ ...prev, [productId]: newQty }));
+      onUpdateQuantity?.(productId, newQty);
+    }
   };
 
-  const storeTotals = useMemo(() => {
-    const totals = {} as Record<StoreName, number>;
+  // Mağazaların genel analizi (Kargo hesapları, eksik ürün sayısı ve toplam maliyetler)
+  const storeAnalyses = useMemo(() => {
+    const analysis = {} as Record<
+      StoreName,
+      {
+        productTotal: number;
+        availableCount: number;
+        missingCount: number;
+        shippingCost: number;
+        finalTotal: number;
+        isAllAvailable: boolean;
+      }
+    >;
 
     STORE_ORDER.forEach((storeName) => {
-      totals[storeName] = items.reduce(
-        (total, product) => {
-          const store = product.stores.find(
-            (productStore) =>
-              productStore.name === storeName,
-          );
+      let productTotal = 0;
+      let availableCount = 0;
 
-          if (!store) {
-            return total;
-          }
+      items.forEach((product) => {
+        const store = product.stores?.find((s) => s.name === storeName);
+        const price = Number(store?.price);
+        const qty = quantities[product.id] || 1;
 
-          const price = Number(store.price);
-          const quantity = quantities[product.id] || 1;
+        if (store && Number.isFinite(price) && price > 0) {
+          productTotal += price * qty;
+          availableCount += 1;
+        }
+      });
 
-          if (!Number.isFinite(price) || price <= 0) {
-            return total;
-          }
+      const missingCount = items.length - availableCount;
+      const shipInfo = MARKET_SHIPPING_INFO[storeName];
 
-          return total + price * quantity;
-        },
-        0,
-      );
+      // Kargo Ücreti Hesabı
+      let shippingCost = 0;
+      if (shoppingMode === "online" && productTotal > 0) {
+        if (shipInfo.threshold === null || productTotal < shipInfo.threshold) {
+          shippingCost = shipInfo.fee;
+        }
+      }
+
+      analysis[storeName] = {
+        productTotal,
+        availableCount,
+        missingCount,
+        shippingCost,
+        finalTotal: productTotal > 0 ? productTotal + shippingCost : 0,
+        isAllAvailable: missingCount === 0 && availableCount > 0,
+      };
     });
 
-    return totals;
-  }, [items, quantities]);
+    return analysis;
+  }, [items, quantities, shoppingMode]);
 
-  const eligibleStores = useMemo(() => {
-    return STORE_ORDER.filter((storeName) =>
-      items.every((product) =>
-        product.stores.some((store) => {
-          const price = Number(store.price);
-
-          return (
-            store.name === storeName &&
-            Number.isFinite(price) &&
-            price > 0
-          );
-        }),
-      ),
-    );
-  }, [items]);
-
-  const cheapestSingleStore = useMemo<{
-    name: StoreName;
-    total: number;
-  } | null>(() => {
-    if (eligibleStores.length === 0) {
-      return null;
-    }
-
-    return eligibleStores.reduce<{
-      name: StoreName;
-      total: number;
-    }>(
-      (bestStore, currentStoreName) => {
-        const currentTotal =
-          storeTotals[currentStoreName];
-
-        if (currentTotal < bestStore.total) {
-          return {
-            name: currentStoreName,
-            total: currentTotal,
-          };
-        }
-
-        return bestStore;
-      },
-      {
-        name: eligibleStores[0],
-        total: storeTotals[eligibleStores[0]],
-      },
-    );
-  }, [eligibleStores, storeTotals]);
-
+  // Akıllı Bölme Dağılımı (Her ürünü en ucuz satan marketle eşleştirir)
   const breakdown = useMemo<BreakdownItem[]>(() => {
     return items.map((product) => {
-      const cheapestStore = getCheapestStore(
-        product.stores,
+      const validStores = (product.stores || []).filter(
+        (s) => Number.isFinite(Number(s.price)) && Number(s.price) > 0
+      );
+      const cheapestStore = validStores.reduce(
+        (min, curr) => (Number(curr.price) < Number(min.price) ? curr : min),
+        validStores[0] || { name: "Watsons", price: 0, url: "" }
       );
 
-      const quantity = quantities[product.id] || 1;
-      const unitPrice = Number(cheapestStore.price);
+      const qty = quantities[product.id] || 1;
+      const unitPrice = Number(cheapestStore?.price || 0);
 
       return {
         product,
         store: cheapestStore,
-        quantity,
-        total: unitPrice * quantity,
+        quantity: qty,
+        total: unitPrice * qty,
       };
     });
   }, [items, quantities]);
 
-  const splitTotal = useMemo(() => {
-    return breakdown.reduce(
-      (total, item) => total + item.total,
-      0,
-    );
-  }, [breakdown]);
-
-  const savings = useMemo(() => {
-    if (!cheapestSingleStore) {
-      return 0;
-    }
-
-    const difference =
-      cheapestSingleStore.total - splitTotal;
-
-    return (
-      Math.round(Math.max(0, difference) * 100) / 100
-    );
-  }, [cheapestSingleStore, splitTotal]);
-
-  const maxTotal = useMemo(() => {
-    return Math.max(
-      ...STORE_ORDER.map((storeName) =>
-        eligibleStores.includes(storeName)
-          ? storeTotals[storeName]
-          : 0,
-      ),
-      splitTotal,
-      1,
-    );
-  }, [eligibleStores, storeTotals, splitTotal]);
-
   const groupedBreakdown = useMemo(() => {
-    return breakdown.reduce<
-      Partial<Record<StoreName, BreakdownItem[]>>
-    >((groups, breakdownItem) => {
-      const storeName =
-        breakdownItem.store.name as StoreName;
-
-      if (!groups[storeName]) {
-        groups[storeName] = [];
-      }
-
-      groups[storeName]?.push(breakdownItem);
-
+    return breakdown.reduce<Partial<Record<StoreName, BreakdownItem[]>>>((groups, item) => {
+      const name = item.store.name as StoreName;
+      if (!groups[name]) groups[name] = [];
+      groups[name]?.push(item);
       return groups;
     }, {});
   }, [breakdown]);
 
+  // Akıllı Bölme Toplam Maliyeti (Ürünler + Kullanılan mağazaların kargo ücretleri)
+  const splitAnalysis = useMemo(() => {
+    let productsTotal = 0;
+    let totalShipping = 0;
+
+    STORE_ORDER.forEach((storeName) => {
+      const storeItems = groupedBreakdown[storeName] || [];
+      if (storeItems.length > 0) {
+        const subTotal = storeItems.reduce((acc, i) => acc + i.total, 0);
+        productsTotal += subTotal;
+
+        if (shoppingMode === "online") {
+          const shipInfo = MARKET_SHIPPING_INFO[storeName];
+          if (shipInfo.threshold === null || subTotal < shipInfo.threshold) {
+            totalShipping += shipInfo.fee;
+          }
+        }
+      }
+    });
+
+    return {
+      productsTotal,
+      totalShipping,
+      finalTotal: productsTotal + totalShipping,
+    };
+  }, [groupedBreakdown, shoppingMode]);
+
+  // Sepetteki TÜM ürünlerin bulunduğu en ucuz tek market
+  const bestSingleStore = useMemo(() => {
+    const eligible = STORE_ORDER.filter((name) => storeAnalyses[name].isAllAvailable);
+    if (eligible.length === 0) return null;
+
+    return eligible.reduce((best, curr) => {
+      return storeAnalyses[curr].finalTotal < storeAnalyses[best].finalTotal ? curr : best;
+    }, eligible[0]);
+  }, [storeAnalyses]);
+
+  const savings = useMemo(() => {
+    if (bestSingleStore) {
+      const diff = storeAnalyses[bestSingleStore].finalTotal - splitAnalysis.finalTotal;
+      return Math.max(0, diff);
+    }
+    return 0;
+  }, [bestSingleStore, storeAnalyses, splitAnalysis]);
+
   const totalProductQuantity = useMemo(() => {
-    return items.reduce(
-      (total, product) =>
-        total + (quantities[product.id] || 1),
-      0,
-    );
+    return items.reduce((total, product) => total + (quantities[product.id] || 1), 0);
   }, [items, quantities]);
+
+  const maxBarValue = useMemo(() => {
+    const allTotals = STORE_ORDER.map((s) => storeAnalyses[s].finalTotal).concat(splitAnalysis.finalTotal);
+    return Math.max(...allTotals, 1);
+  }, [storeAnalyses, splitAnalysis]);
 
   if (items.length === 0) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#F5F5F0",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "Inter, sans-serif",
-        }}
-      >
-        <div
-          style={{
-            textAlign: "center",
-            padding: 40,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 48,
-              marginBottom: 16,
-            }}
-          >
-            🛒
-          </div>
-
-          <div
-            style={{
-              fontSize: 18,
-              fontWeight: 600,
-              color: "#1A1A1A",
-              marginBottom: 8,
-            }}
-          >
-            Sepetin boş
-          </div>
-
-          <div
-            style={{
-              fontSize: 14,
-              color: "#666",
-            }}
-          >
-            Ürün kataloğundan veya AI asistanından
-            ürün ekle
+      <div className="min-h-screen bg-[#F5F5F0] flex items-center justify-center font-sans p-4">
+        <div className="text-center bg-white p-10 rounded-2xl shadow-sm border border-stone-200 max-w-md w-full">
+          <div className="text-6xl mb-4">🛒</div>
+          <div className="text-lg font-bold text-stone-800 mb-2">Sepetin boş</div>
+          <div className="text-sm text-stone-500">
+            Ürün kataloğundan veya AI asistanından sepetine ürün ekleyerek kargo dahil en ucuz kombinasyonları görebilirsin.
           </div>
         </div>
       </div>
@@ -303,1081 +241,392 @@ export function CartOptimizer({
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#F5F5F0",
-        fontFamily: "Inter, sans-serif",
-      }}
-    >
-      {/* Üst başlık */}
-      <div
-        style={{
-          background: "#FFFFFF",
-          borderBottom: "1px solid #E8E8E2",
-          padding: "16px 32px",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-        }}
-      >
-        <div style={{ flex: 1 }}>
-          <h1
-            style={{
-              fontSize: 20,
-              fontWeight: 700,
-              color: "#1A1A1A",
-              margin: 0,
-            }}
-          >
-            Sepet Optimizasyonu
-          </h1>
+    <div className="min-h-screen bg-[#F5F5F0] font-sans pb-16 text-stone-800">
+      {/* Üst başlık & Alışveriş Modu Seçimi */}
+      <div className="bg-white border-b border-stone-200 px-6 py-4 sticky top-0 z-20 shadow-xs">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-stone-900 m-0">Sepet Optimizasyonu</h1>
+            <p className="text-xs text-stone-500 mt-1">
+              {items.length} farklı ürün · {totalProductQuantity} adet · 4 mağazada anlık kargo ve fiyat karşılaştırması
+            </p>
+          </div>
 
-          <p
-            style={{
-              fontSize: 12,
-              color: "#666",
-              margin: "2px 0 0",
-            }}
-          >
-            {items.length} farklı ürün ·{" "}
-            {totalProductQuantity} adet · 4 mağazada en
-            iyi kombinasyon
-          </p>
+          <div className="flex items-center gap-3">
+            {/* Online / Mağaza Seçim Butonları */}
+            <div className="flex items-center bg-stone-100 p-1 rounded-xl border border-stone-200">
+              <button
+                type="button"
+                onClick={() => setShoppingMode("online")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  shoppingMode === "online"
+                    ? "bg-white text-[#2D6A4F] shadow-xs"
+                    : "text-stone-600 hover:text-stone-900"
+                }`}
+              >
+                <Truck size={14} />
+                Online (Kargolu)
+              </button>
+              <button
+                type="button"
+                onClick={() => setShoppingMode("physical")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  shoppingMode === "physical"
+                    ? "bg-white text-[#2D6A4F] shadow-xs"
+                    : "text-stone-600 hover:text-stone-900"
+                }`}
+              >
+                <Store size={14} />
+                Mağazadan Alacağım
+              </button>
+            </div>
+
+            
+          </div>
         </div>
-
-        <button
-          type="button"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "8px 14px",
-            borderRadius: 8,
-            border: "1.5px solid #E0E0DA",
-            background: "#FFFFFF",
-            color: "#666",
-            cursor: "pointer",
-            fontSize: 13,
-          }}
-        >
-          <Share2 size={14} />
-          Paylaş
-        </button>
-
-        <button
-          type="button"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "8px 14px",
-            borderRadius: 8,
-            border: "1.5px solid #E0E0DA",
-            background: "#FFFFFF",
-            color: "#666",
-            cursor: "pointer",
-            fontSize: 13,
-          }}
-        >
-          <Heart size={14} />
-          Favorilere Ekle
-        </button>
       </div>
 
-      {/* Mağaza özetleri */}
-      <div
-        style={{
-          background: "#FFFFFF",
-          borderBottom: "1px solid #E8E8E2",
-          padding: "0 32px",
-        }}
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-          }}
-        >
+      <div className="max-w-7xl mx-auto px-4 md:px-6 mt-6">
+        {/* Mağaza Özetleri (4'lü Kart Alanı) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
           {STORE_ORDER.map((storeName) => {
-            const isEligible =
-              eligibleStores.includes(storeName);
-
-            const total = storeTotals[storeName];
-
-            const isBest =
-              cheapestSingleStore !== null &&
-              storeName === cheapestSingleStore.name;
-
-            const storeColor =
-              STORE_COLORS[storeName];
-
-            const barPercentage = isEligible
-              ? (total / maxTotal) * 100
-              : 0;
+            const analysis = storeAnalyses[storeName];
+            const isBest = bestSingleStore === storeName;
+            const storeColor = STORE_COLORS[storeName] || { color: "#9CA3AF", light: "#F3F4F6" };
+            const barPercentage = analysis.finalTotal > 0 ? (analysis.finalTotal / maxBarValue) * 100 : 0;
 
             return (
               <div
                 key={storeName}
-                style={{
-                  padding: "16px 20px",
-                  borderRight:
-                    "1px solid #F0F0EC",
-                  background: isBest
-                    ? storeColor.light
-                    : "transparent",
-                  position: "relative",
-                }}
+                className={`p-4 rounded-2xl border transition-all bg-white relative overflow-hidden ${
+                  isBest ? "border-2 shadow-md" : "border-stone-200 shadow-xs"
+                }`}
+                style={{ borderColor: isBest ? storeColor.color : undefined }}
               >
                 {isBest && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: 3,
-                      background: storeColor.color,
-                    }}
-                  />
+                  <div className="absolute top-0 right-0 bg-emerald-700 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-bl uppercase tracking-wider">
+                    En İyi Tek Mağaza
+                  </div>
                 )}
 
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent:
-                      "space-between",
-                    marginBottom: 8,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: isBest
-                        ? storeColor.color
-                        : "#999",
-                      textTransform: "uppercase",
-                    }}
-                  >
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: storeColor.color }}>
                     {storeName}
-                  </div>
+                  </span>
+                </div>
 
-                  {isBest && (
-                    <span
-                      style={{
-                        fontSize: 9,
-                        background:
-                          storeColor.color,
-                        color: "#FFFFFF",
-                        padding: "2px 7px",
-                        borderRadius: 20,
-                        fontWeight: 700,
-                      }}
-                    >
-                      EN İYİ
+                <div className="text-xl md:text-2xl font-bold text-stone-900">
+                  {analysis.availableCount > 0 ? `₺${formatPrice(analysis.finalTotal)}` : "Stok Yok"}
+                </div>
+
+                {/* Eksik Ürün veya Mevcut Durum Bilgisi */}
+                <div className="text-[11px] mt-1 font-medium min-h-[18px] flex items-center">
+                  {analysis.missingCount > 0 ? (
+                    <span className="text-amber-600 flex items-center gap-1">
+                      <AlertCircle size={12} /> {analysis.missingCount} ürün eksik
                     </span>
-                  )}
+                  ) : analysis.availableCount > 0 ? (
+                    <span className="text-emerald-700 flex items-center gap-1">
+                      <CheckCircle2 size={12} /> Tüm ürünler var
+                    </span>
+                  ) : null}
                 </div>
 
-                <div
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 700,
-                    color: isBest
-                      ? storeColor.color
-                      : "#1A1A1A",
-                    marginBottom: 6,
-                  }}
-                >
-                  {isEligible
-                    ? `₺${formatPrice(total)}`
-                    : "Stok yok"}
-                </div>
+                {/* Kargo Ücreti Göstergesi */}
+                {shoppingMode === "online" && analysis.availableCount > 0 && (
+                  <div className="text-[11px] text-stone-500 mt-1 border-t border-stone-100 pt-1.5 flex justify-between">
+                    <span>Kargo:</span>
+                    <span className="font-semibold text-stone-700">
+                      {analysis.shippingCost === 0 ? "Bedava 🎉" : `+₺${formatPrice(analysis.shippingCost)}`}
+                    </span>
+                  </div>
+                )}
 
-                <div
-                  style={{
-                    height: 4,
-                    borderRadius: 2,
-                    background: "#EEEEE8",
-                    overflow: "hidden",
-                  }}
-                >
+                {/* Yüzdesel Karşılaştırma Barı */}
+                <div className="h-1.5 bg-stone-100 rounded-full mt-3 overflow-hidden">
                   <div
+                    className="h-full rounded-full transition-all duration-500"
                     style={{
-                      height: "100%",
-                      width: isEligible
-                        ? `${Math.max(
-                            12,
-                            100 -
-                              barPercentage +
-                              30,
-                          )}%`
-                        : "0%",
-                      maxWidth: "100%",
-                      background: isBest
-                        ? storeColor.color
-                        : "#DDDDD8",
+                      width: `${Math.max(8, barPercentage)}%`,
+                      backgroundColor: isBest ? storeColor.color : "#D6D6D2",
                     }}
                   />
                 </div>
-
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "#999",
-                    marginTop: 4,
-                  }}
-                >
-                  Kargo dahil değil
-                </div>
               </div>
             );
           })}
         </div>
-      </div>
 
-      {/* Ana içerik */}
-      <div
-        style={{
-          display: "flex",
-          gap: 24,
-          padding: "28px 32px",
-          alignItems: "flex-start",
-        }}
-      >
-        {/* Sol taraf */}
-        <div
-          style={{
-            flex: "0 0 380px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              color: "#1A1A1A",
-              textTransform: "uppercase",
-              marginBottom: 4,
-            }}
-          >
-            Sepetteki Ürünler
-          </div>
+        {/* Ana İçerik Alanı: Sol (Ürünler) - Sağ (Stratejiler) */}
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          
+          {/* SOL TARAF: Sepetteki Ürünler */}
+          <div className="w-full lg:w-[400px] flex-shrink-0 flex flex-col gap-3">
+            <div className="text-xs font-bold text-stone-700 uppercase tracking-wider px-1">
+              Sepetteki Ürünler ({items.length})
+            </div>
 
-          {items.map((product) => {
-            const cheapestStore =
-              getCheapestStore(product.stores);
+            {items.map((product) => {
+              const cheapestStore = getCheapestStore(product.stores);
+              const quantity = quantities[product.id] || 1;
+              const unitPrice = Number(cheapestStore.price);
+              const productTotal = unitPrice * quantity;
+              const storeColor = STORE_COLORS[cheapestStore.name as StoreName] || STORE_COLORS.Watsons;
 
-            const quantity =
-              quantities[product.id] || 1;
-
-            const unitPrice = Number(
-              cheapestStore.price,
-            );
-
-            const productTotal =
-              unitPrice * quantity;
-
-            const storeColor =
-              STORE_COLORS[cheapestStore.name];
-
-            return (
-              <div
-                key={product.id}
-                style={{
-                  background: "#FFFFFF",
-                  borderRadius: 12,
-                  border:
-                    "1.5px solid #E8E8E2",
-                  boxShadow:
-                    "0 4px 16px rgba(0,0,0,0.06)",
-                  padding: "14px 16px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                }}
-              >
-                <img
-                  src={product.image}
-                  alt={product.title}
-                  style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 8,
-                    objectFit: "contain",
-                    border:
-                      "1px solid #F0F0EC",
-                    flexShrink: 0,
-                  }}
-                />
-
+              return (
                 <div
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                  }}
+                  key={product.id}
+                  className="bg-white p-3.5 rounded-xl border border-stone-200 shadow-xs flex items-center gap-3.5"
                 >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: "#2D6A4F",
-                      fontWeight: 600,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {product.brand}
-                  </div>
+                  <img
+                    src={product.image}
+                    alt={product.title}
+                    className="w-13 h-13 object-contain rounded-lg border border-stone-100 p-1 bg-stone-50 flex-shrink-0"
+                  />
 
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "#1A1A1A",
-                      marginTop: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {product.title}
-                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-bold uppercase text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded w-max">
+                      {product.brand}
+                    </div>
+                    <div className="text-xs font-semibold text-stone-900 truncate mt-1">
+                      {product.title}
+                    </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      marginTop: 4,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 10,
-                        background:
-                          storeColor.light,
-                        color: storeColor.color,
-                        padding: "2px 7px",
-                        borderRadius: 20,
-                      }}
-                    >
-                      {cheapestStore.name}
-                    </span>
-
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        color: "#1A1A1A",
-                      }}
-                    >
-                      ₺{formatPrice(productTotal)}
-                    </span>
-
-                    {quantity > 1 && (
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <span
-                        style={{
-                          fontSize: 10,
-                          color: "#999",
-                        }}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ background: storeColor.light, color: storeColor.color }}
                       >
-                        ₺{formatPrice(unitPrice)} ×{" "}
+                        En ucuz: {cheapestStore.name}
+                      </span>
+                      <span className="text-xs font-bold text-stone-900">
+                        ₺{formatPrice(productTotal)}
+                      </span>
+                      {quantity > 1 && (
+                        <span className="text-[10px] text-stone-400">
+                          (₺{formatPrice(unitPrice)} × {quantity})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onRemoveItem(product.id)}
+                      title="Sepetten kaldır"
+                      className="text-stone-300 hover:text-rose-600 transition-colors p-1"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+
+                    <div className="flex items-center border border-stone-200 rounded-lg bg-stone-50 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => decreaseQuantity(product.id)}
+                        disabled={quantity <= 1}
+                        className="w-6 h-6 flex items-center justify-center text-stone-600 hover:bg-stone-200 disabled:opacity-30 disabled:hover:bg-transparent font-bold text-xs"
+                      >
+                        −
+                      </button>
+                      <span className="w-5 text-center text-xs font-bold text-stone-800">
                         {quantity}
                       </span>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => increaseQuantity(product.id)}
+                        className="w-6 h-6 flex items-center justify-center text-stone-600 hover:bg-stone-200 font-bold text-xs"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() =>
-                      decreaseQuantity(product.id)
-                    }
-                    disabled={quantity <= 1}
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: 6,
-                      border:
-                        "1.5px solid #E0E0DA",
-                      background: "#FFFFFF",
-                      cursor:
-                        quantity <= 1
-                          ? "not-allowed"
-                          : "pointer",
-                      opacity:
-                        quantity <= 1 ? 0.5 : 1,
-                    }}
-                  >
-                    −
-                  </button>
-
-                  <span
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      width: 20,
-                      textAlign: "center",
-                    }}
-                  >
-                    {quantity}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      increaseQuantity(product.id)
-                    }
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: 6,
-                      border:
-                        "1.5px solid #E0E0DA",
-                      background: "#FFFFFF",
-                      cursor: "pointer",
-                    }}
-                  >
-                    +
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    onRemoveItem(product.id)
-                  }
-                  title="Sepetten kaldır"
-                  style={{
-                    padding: 6,
-                    border: "none",
-                    background: "transparent",
-                    color: "#CCC",
-                    cursor: "pointer",
-                  }}
-                >
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Sağ taraf */}
-        <div
-          style={{
-            flex: 1,
-            minWidth: 0,
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              color: "#1A1A1A",
-              textTransform: "uppercase",
-            }}
-          >
-            En Uygun Sepet
+              );
+            })}
           </div>
 
-          {/* Tek Kargo */}
-          {cheapestSingleStore ? (
+          {/* SAĞ TARAF: En Uygun Alışveriş Kombinasyonu */}
+          <div className="flex-1 w-full flex flex-col gap-4">
+            <div className="text-xs font-bold text-stone-700 uppercase tracking-wider px-1">
+              En Uygun Sepet Stratejisi
+            </div>
+
+            {/* Seçenek 1: AKILLI BÖLME */}
             <div
-              onClick={() =>
-                setActiveOption("single")
-              }
-              style={{
-                background: "#FFFFFF",
-                borderRadius: 12,
-                border:
-                  activeOption === "single"
-                    ? "2px solid #2D6A4F"
-                    : "1.5px solid #E8E8E2",
-                boxShadow:
-                  "0 4px 16px rgba(0,0,0,0.06)",
-                overflow: "hidden",
-                cursor: "pointer",
-              }}
+              onClick={() => setActiveOption("split")}
+              className={`bg-white rounded-2xl border-2 transition-all cursor-pointer overflow-hidden shadow-xs ${
+                activeOption === "split" ? "border-[#2D6A4F] ring-4 ring-[#2D6A4F]/10" : "border-stone-200"
+              }`}
             >
-              <div
-                style={{
-                  padding: "14px 18px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  borderBottom:
-                    "1px solid #F0F0EC",
-                }}
-              >
-                <ShoppingBag
-                  size={16}
-                  style={{ color: "#666" }}
-                />
-
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 700,
-                    }}
-                  >
-                    Tek Kargo
+              <div className="p-4 md:p-5 border-b border-stone-100 flex items-center justify-between gap-4 bg-stone-50/60">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 text-[#2D6A4F] flex items-center justify-center flex-shrink-0">
+                    <TrendingDown size={18} />
                   </div>
-
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "#666",
-                    }}
-                  >
-                    Tüm ürünleri{" "}
-                    {cheapestSingleStore.name}
-                    &apos;ten al
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-bold text-stone-900">Akıllı Bölme (Önerilen)</div>
+                      <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                        Maksimum Tasarruf
+                      </span>
+                    </div>
+                    <div className="text-xs text-stone-500 mt-0.5">
+                      Her ürünü en ucuz olduğu mağazadan ayrı ayrı al
+                    </div>
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    textAlign: "right",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 20,
-                      fontWeight: 700,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    ₺
-                    {formatPrice(
-                      cheapestSingleStore.total,
-                    )}
+                <div className="text-right flex-shrink-0">
+                  <div className="text-xl font-bold text-[#1B4332]">
+                    ₺{formatPrice(splitAnalysis.finalTotal)}
                   </div>
-
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "#999",
-                    }}
-                  >
-                    + kargo ücreti
-                  </div>
+                  {savings > 0 && (
+                    <div className="text-xs font-bold text-emerald-600">
+                      Tek kargoya göre ₺{formatPrice(savings)} tasarruf!
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div
-                style={{
-                  padding: "10px 18px",
-                }}
-              >
-                {items.map((product) => {
-                  const storePrice =
-                    product.stores.find(
-                      (store) =>
-                        store.name ===
-                        cheapestSingleStore.name,
-                    );
+              {/* Akıllı Bölme Kırılımları ve Satın Alma Linkleri */}
+              <div className="p-4 md:p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                {STORE_ORDER.map((storeName) => {
+                  const storeItems = groupedBreakdown[storeName];
+                  if (!storeItems?.length) return null;
+                  const storeColor = STORE_COLORS[storeName];
+                  const productsSubTotal = storeItems.reduce((acc, i) => acc + i.total, 0);
 
-                  const quantity =
-                    quantities[product.id] || 1;
-
-                  const itemTotal =
-                    Number(
-                      storePrice?.price || 0,
-                    ) * quantity;
+                  let shipCost = 0;
+                  if (shoppingMode === "online") {
+                    const info = MARKET_SHIPPING_INFO[storeName];
+                    if (info.threshold === null || productsSubTotal < info.threshold) {
+                      shipCost = info.fee;
+                    }
+                  }
 
                   return (
                     <div
-                      key={product.id}
-                      style={{
-                        display: "flex",
-                        justifyContent:
-                          "space-between",
-                        padding: "6px 0",
-                        fontSize: 12,
-                        color: "#666",
-                        borderBottom:
-                          "1px dashed #F0F0EC",
-                      }}
+                      key={storeName}
+                      className="p-3.5 rounded-xl border flex flex-col justify-between"
+                      style={{ background: storeColor.light, borderColor: `${storeColor.color}33` }}
                     >
-                      <span>
-                        {product.brand}{" "}
-                        {product.title.split(" ")[0]}
-                        {quantity > 1
-                          ? ` × ${quantity}`
-                          : ""}
-                      </span>
+                      <div>
+                        <div className="flex justify-between items-center mb-2 border-b border-black/5 pb-1.5">
+                          <span className="font-bold text-xs uppercase" style={{ color: storeColor.color }}>
+                            {storeName} ({storeItems.length} ürün)
+                          </span>
+                          <span className="font-bold text-xs text-stone-900">
+                            ₺{formatPrice(productsSubTotal + shipCost)}
+                          </span>
+                        </div>
+                        <ul className="space-y-1.5 mb-3">
+                          {storeItems.map(({ product, quantity, total }) => (
+                            <li key={product.id} className="text-[11px] text-stone-600 flex justify-between items-center">
+                              <span className="truncate pr-2">
+                                • {product.brand} {product.title.split(" ").slice(0, 2).join(" ")} {quantity > 1 ? `(x${quantity})` : ""}
+                              </span>
+                              <span className="font-semibold text-stone-800 flex-shrink-0">₺{formatPrice(total)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
 
-                      <span
-                        style={{
-                          fontWeight: 500,
-                          color: "#1A1A1A",
-                        }}
-                      >
-                        ₺{formatPrice(itemTotal)}
-                      </span>
+                      <div className="pt-2 border-t border-black/5 flex items-center justify-between mt-auto">
+                        <span className="text-[10px] text-stone-500 font-medium">
+                          {shoppingMode === "online" ? (shipCost === 0 ? "🎉 Kargo Bedava" : `+₺${formatPrice(shipCost)} Kargo`) : "Mağazadan Alınacak"}
+                        </span>
+
+                        {/* Mağazanın Web Sitesine Yönlendiren Buton */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const targetStore = storeItems[0]?.product.stores?.find(
+                            (s) => s.name === storeName
+                                );
+                                   if (targetStore?.url) window.open(targetStore.url, "_blank")
+                          }}
+                          className="flex items-center gap-1 text-[11px] font-bold px-3 py-1 rounded-lg text-white shadow-xs hover:opacity-90 transition-opacity"
+                          style={{ background: storeColor.color }}
+                        >
+                          <span>Siteden Al</span>
+                          <ExternalLink size={11} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
               </div>
-
-              <div
-                style={{
-                  padding: "10px 18px",
-                  textAlign: "right",
-                }}
-              >
-                <button
-                  type="button"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "9px 18px",
-                    borderRadius: 8,
-                    border: "none",
-                    background: "#2D6A4F",
-                    color: "#FFFFFF",
-                    cursor: "pointer",
-                    marginLeft: "auto",
-                  }}
-                >
-                  <ExternalLink size={13} />
-                  {cheapestSingleStore.name}
-                  &apos;e Git
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div
-              style={{
-                background: "#FFFFFF",
-                borderRadius: 12,
-                border:
-                  "1.5px solid #E8E8E2",
-                padding: "16px 18px",
-              }}
-            >
-              Sepetteki tüm ürünleri satan tek bir
-              mağaza yok. En iyi seçenek:{" "}
-              <strong>Akıllı Bölme</strong>.
-            </div>
-          )}
-
-          {/* Akıllı Bölme */}
-          <div
-            onClick={() =>
-              setActiveOption("split")
-            }
-            style={{
-              background: "#FFFFFF",
-              borderRadius: 12,
-              border:
-                activeOption === "split"
-                  ? "2px solid #2D6A4F"
-                  : "1.5px solid #E8E8E2",
-              boxShadow:
-                "0 4px 20px rgba(0,0,0,0.08)",
-              overflow: "hidden",
-              cursor: "pointer",
-            }}
-          >
-            {/* Düzeltilen başlık alanı */}
-            <div
-              style={{
-                padding: "14px 18px",
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                borderBottom:
-                  "1px solid #F0F0EC",
-                flexWrap: "wrap",
-              }}
-            >
-              <TrendingDown
-                size={16}
-                style={{
-                  color: "#2D6A4F",
-                  flexShrink: 0,
-                }}
-              />
-
-              <div
-                style={{
-                  flex: "1 1 220px",
-                  minWidth: 0,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: "#1A1A1A",
-                  }}
-                >
-                  Akıllı Bölme
-                </div>
-
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "#666",
-                  }}
-                >
-                  Her ürünü en ucuz mağazadan al
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "flex-end",
-                  gap: 16,
-                  flexWrap: "wrap",
-                  marginLeft: "auto",
-                }}
-              >
-                <div
-                  style={{
-                    textAlign: "right",
-                    flexShrink: 0,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 20,
-                      fontWeight: 700,
-                      color: "#1B4332",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    ₺{formatPrice(splitTotal)}
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "#52B788",
-                      fontWeight: 600,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {savings > 0
-                      ? `₺${formatPrice(
-                          savings,
-                        )} tasarruf!`
-                      : "En uygun fiyat"}
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: "#FFB7B2",
-                    color: "#1B4332",
-                    borderRadius: 20,
-                    padding: "5px 12px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    whiteSpace: "nowrap",
-                    flexShrink: 0,
-                  }}
-                >
-                  Maksimum Tasarruf
-                </div>
-              </div>
             </div>
 
-            {/* Mağazalara göre dağılım */}
-            <div
-              style={{
-                padding: "12px 18px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              {STORE_ORDER.map((storeName) => {
-                const storeItems =
-                  groupedBreakdown[storeName];
-
-                if (!storeItems?.length) {
-                  return null;
-                }
-
-                const storeColor =
-                  STORE_COLORS[storeName];
-
-                const storeTotal =
-                  storeItems.reduce(
-                    (total, item) =>
-                      total + item.total,
-                    0,
-                  );
-
-                return (
-                  <div
-                    key={storeName}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 8,
-                      background:
-                        storeColor.light,
-                      border: `1px solid ${storeColor.color}22`,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent:
-                          "space-between",
-                        marginBottom: 6,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color:
-                            storeColor.color,
-                          textTransform:
-                            "uppercase",
-                        }}
-                      >
-                        {storeName}
-                      </span>
-
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 700,
-                          color: "#1A1A1A",
-                        }}
-                      >
-                        ₺{formatPrice(storeTotal)}
-                      </span>
+            {/* Seçenek 2: TEK MARKET (TEK KARGO) */}
+            {bestSingleStore ? (
+              <div
+                onClick={() => setActiveOption("single")}
+                className={`bg-white rounded-2xl border-2 transition-all cursor-pointer overflow-hidden shadow-xs ${
+                  activeOption === "single" ? "border-[#2D6A4F] ring-4 ring-[#2D6A4F]/10" : "border-stone-200"
+                }`}
+              >
+                <div className="p-4 md:p-5 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-stone-100 text-stone-600 flex items-center justify-center flex-shrink-0">
+                      <ShoppingBag size={18} />
                     </div>
+                    <div>
+                      <div className="text-sm font-bold text-stone-900">
+                        Tek Kargo / Mağaza ({bestSingleStore})
+                      </div>
+                      <div className="text-xs text-stone-500 mt-0.5">
+                        Tüm ürünleri tek bir mağazadan eksiksiz sipariş et
+                      </div>
+                    </div>
+                  </div>
 
-                    {storeItems.map(
-                      ({
-                        product,
-                        quantity,
-                        store,
-                        total,
-                      }) => (
-                        <div
-                          key={product.id}
-                          style={{
-                            display: "flex",
-                            justifyContent:
-                              "space-between",
-                            alignItems:
-                              "flex-start",
-                            gap: 12,
-                            padding: "3px 4px",
-                            fontSize: 11.5,
-                            color: "#555",
-                          }}
-                        >
-                          <span>
-                            · {product.brand}{" "}
-                            {product.title
-                              .split(" ")
-                              .slice(0, 2)
-                              .join(" ")}
-                            {quantity > 1
-                              ? ` × ${quantity}`
-                              : ""}
-                          </span>
-
-                          <span
-                            style={{
-                              whiteSpace: "nowrap",
-                              fontWeight: 500,
-                            }}
-                          >
-                            ₺{formatPrice(total)}
-                            {quantity > 1 && (
-                              <span
-                                style={{
-                                  marginLeft: 4,
-                                  color: "#888",
-                                  fontWeight: 400,
-                                }}
-                              >
-                                (₺
-                                {formatPrice(
-                                  Number(
-                                    store.price,
-                                  ),
-                                )}{" "}
-                                × {quantity})
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      ),
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-xl font-bold text-stone-800">
+                      ₺{formatPrice(storeAnalyses[bestSingleStore].finalTotal)}
+                    </div>
+                    {shoppingMode === "online" && (
+                      <div className="text-[11px] text-stone-400">
+                        {storeAnalyses[bestSingleStore].shippingCost === 0 ? "Kargo Bedava" : `+₺${formatPrice(storeAnalyses[bestSingleStore].shippingCost)} Kargo`}
+                      </div>
                     )}
                   </div>
-                );
-              })}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl text-xs text-amber-800 flex items-center gap-2">
+                <AlertCircle size={18} className="text-amber-600 flex-shrink-0" />
+                <span>
+                  Sepetinizdeki tüm ürünleri aynı anda stoklarında bulunduran tek bir mağaza yok. En mantıklı seçenek <strong>Akıllı Bölme</strong> ile alışveriş yapmaktır.
+                </span>
+              </div>
+            )}
+
+            {/* Bilgilendirme Notu */}
+            <div className="flex items-start gap-2.5 p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/60 text-xs text-amber-900">
+              <Info size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="m-0 leading-relaxed">
+                Tüm fiyat karşılaştırmaları Supabase üzerinden gerçek zamanlı verilerle yapılmaktadır. Gratis için 150 TL üzeri ücretsiz kargo, diğer marketler için sabit kargo tarifeleri (Watsons: 74.90 TL, Rossmann: 69.90 TL, Mion: 54.90 TL) uygulanmıştır. Fiziksel mağazadan alacaksanız yukarıdaki moddan kargoyu kapatabilirsiniz.
+              </p>
             </div>
 
-            {/* Mağazaya git butonları */}
-            <div
-              style={{
-                padding: "10px 18px 14px",
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 8,
-              }}
-            >
-              {STORE_ORDER.filter(
-                (storeName) =>
-                  groupedBreakdown[storeName]
-                    ?.length,
-              ).map((storeName) => {
-                const storeColor =
-                  STORE_COLORS[storeName];
-
-                return (
-                  <button
-                    type="button"
-                    key={storeName}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "8px 16px",
-                      borderRadius: 8,
-                      border: "none",
-                      background:
-                        storeColor.color,
-                      color: "#FFFFFF",
-                      cursor: "pointer",
-                      fontSize: 12.5,
-                      fontWeight: 600,
-                    }}
-                  >
-                    <ExternalLink size={12} />
-                    {storeName}&apos;e Git
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Bilgilendirme */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 6,
-              padding: "10px 14px",
-              background: "#FFFBF0",
-              borderRadius: 8,
-              border: "1px solid #F5E4A8",
-            }}
-          >
-            <Info
-              size={13}
-              style={{
-                color: "#B8860B",
-                flexShrink: 0,
-                marginTop: 1,
-              }}
-            />
-
-            <p
-              style={{
-                fontSize: 11,
-                color: "#8B6914",
-                margin: 0,
-                lineHeight: 1.5,
-              }}
-            >
-              Bu öneriler iş birlikleri içerebilir.
-              Tüm fiyat karşılaştırmaları gerçek
-              zamanlı veriye dayanmaktadır.
-            </p>
-          </div>
-
-          {/* Toplam özeti */}
-          <div
-            style={{
-              background:
-                "linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)",
-              borderRadius: 12,
-              padding: "20px 24px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color:
-                    "rgba(255,255,255,0.6)",
-                  marginBottom: 4,
-                }}
-              >
-                Akıllı bölme ile tasarruf
+            {/* Alt Toplam Özeti Banner'ı */}
+            <div className="bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] rounded-2xl p-5 text-white flex items-center justify-between shadow-md mt-2">
+              <div>
+                <div className="text-xs text-white/70 mb-1">Akıllı bölme ile tasarruf</div>
+                <div className="text-2xl md:text-3xl font-bold">₺{formatPrice(savings)}</div>
               </div>
 
-              <div
-                style={{
-                  fontSize: 28,
-                  fontWeight: 700,
-                  color: "#FFFFFF",
-                }}
-              >
-                ₺{formatPrice(savings)}
+              <div className="text-right">
+                <div className="text-xs text-white/70 mb-1">Toplam ({totalProductQuantity} adet)</div>
+                <div className="text-xl md:text-2xl font-bold text-[#FFB7B2]">
+                   ₺{formatPrice(splitAnalysis.finalTotal)}
+                </div>
               </div>
             </div>
 
-            <div
-              style={{
-                textAlign: "right",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 12,
-                  color:
-                    "rgba(255,255,255,0.6)",
-                  marginBottom: 4,
-                }}
-              >
-                Toplam ({totalProductQuantity} adet)
-              </div>
-
-              <div
-                style={{
-                  fontSize: 24,
-                  fontWeight: 700,
-                  color: "#FFB7B2",
-                }}
-              >
-                ₺{formatPrice(splitTotal)}
-              </div>
-            </div>
           </div>
         </div>
       </div>

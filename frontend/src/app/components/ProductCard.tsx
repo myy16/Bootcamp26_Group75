@@ -9,6 +9,7 @@ import {
   getCheapestStore,
   STORE_COLORS,
   STORE_ORDER,
+  StoreName,
 } from "../data";
 import { User } from "@supabase/supabase-js"; // Kullanıcı tipini ekliyoruz
 
@@ -50,14 +51,21 @@ export function ProductCard({
 
   // Kalp ikonuna tıklama kontrolü
   const handleFavoriteClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Tıklamanın karta (detaya) gitmesini engeller
+    e.stopPropagation(); 
 
     if (!user && onOpenLogin) {
-      // Kullanıcı yoksa modalı aç
       onOpenLogin();
     } else {
-      // Kullanıcı varsa favoriye ekle/çıkar
       onToggleFavorite(product.id);
+    }
+  };
+
+  const handleAddToCartClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user && onOpenLogin) {
+      onOpenLogin(); // Kullanıcı giriş yapmamışsa giriş modalını aç
+    } else {
+      onAddToCart(product); // Kullanıcı varsa Supabase sepetine ekleme fonksiyonunu tetikle
     }
   };
 
@@ -134,72 +142,67 @@ export function ProductCard({
           {validStores.map((store, index) => {
             const isCheapestStore =
               cheapest && store.name === cheapest.name;
-            const storeColor = STORE_COLORS[store.name];
+            const storeColor = STORE_COLORS[store.name as StoreName] || { 
+           color: "#9CA3AF", 
+    light: "#F3F4F6" 
+  };
 
-            return (
-              <div
-                key={`${store.name}-${index}`}
-                className="flex items-center justify-between px-1.5 rounded-lg transition-colors hover:bg-gray-50/80"
-              >
-                {/* SOL TARAF: Mağaza İsmi Bilgisi */}
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ background: storeColor.color }}
-                  />
-                  <div className="text-[12.5px] font-semibold text-gray-700 tracking-tight">
-                    {store.name}
-                  </div>
-                </div>
+              return (
+    <div
+      key={`${store.name}-${index}`}
+      className="flex items-center justify-between px-1.5 rounded-lg transition-colors hover:bg-gray-50/80"
+    >
+      <div className="flex items-center gap-2">
+        <div
+          className="w-1.5 h-1.5 rounded-full shrink-0"
+          style={{ background: storeColor.color }}
+        />
+        <div className="text-[12.5px] font-semibold text-gray-700 tracking-tight">
+          {store.name}
+        </div>
+      </div>
 
-                {/* SAĞ TARAF: Rozet ve Fiyat Grubu */}
-                <div className="flex items-center gap-2">
-                  {/* EN UCUZ rozeti tam olarak fiyatın SOL tarafında yer alır */}
-                  {isCheapestStore && (
-                    <div className="text-[9px] font-extrabold rounded-md px-1.5 py-0.5 shrink-0 whitespace-nowrap tracking-wide animate-pulse bg-[#EBF5F0] text-[#2D6A4F]">
-                      EN UCUZ
-                    </div>
-                  )}
-
-                  {/* Fiyat Bilgisi */}
-                  <div
-                    className={`text-[13.5px] text-right shrink-0 tracking-tight ${
-                      isCheapestStore
-                        ? "font-bold text-[#2D6A4F]"
-                        : "font-medium text-gray-500"
-                    }`}
-                  >
-                    {store.price} ₺
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      <div className="flex items-center gap-2">
+        {isCheapestStore && (
+          <div className="text-[9px] font-extrabold rounded-md px-1.5 py-0.5 shrink-0 whitespace-nowrap tracking-wide animate-pulse bg-[#EBF5F0] text-[#2D6A4F]">
+            EN UCUZ
+          </div>
+        )}
+        <div
+          className={`text-[13.5px] text-right shrink-0 tracking-tight ${
+            isCheapestStore
+              ? "font-bold text-[#2D6A4F]"
+              : "font-medium text-gray-500"
+          }`}
+        >
+          {store.price} ₺
+        </div>
+      </div>
+    </div>
+  );
+})}
         </div>
 
         {/* Add to cart button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddToCart(product);
-          }}
-          className={`flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl w-full text-[13px] font-semibold transition-colors duration-200 ${
-            isInCart
-              ? "bg-[#EBF5F0] text-[#2D6A4F] hover:bg-[#DDF0E6]"
-              : "bg-[#1B4332] text-white hover:bg-[#153427] shadow-md shadow-[#1B4332]/20"
-          }`}
-        >
-          {isInCart ? (
-            <>
-              <Check size={14} className="stroke-[3px]" />{" "}
-              Sepette
-            </>
-          ) : (
-            <>
-              <ShoppingBag size={14} /> Sepete Ekle
-            </>
-          )}
-        </button>
+       <button
+        onClick={handleAddToCartClick}
+        disabled={isInCart} // Zaten sepetteyse tekrar basılmasını isteğe bağlı engelleyebilirsiniz
+        className={`flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl w-full text-[13px] font-semibold transition-colors duration-200 mt-auto ${
+          isInCart
+            ? "bg-[#EBF5F0] text-[#2D6A4F] cursor-default"
+            : "bg-[#1B4332] text-white hover:bg-[#153427] shadow-md shadow-[#1B4332]/20"
+        }`}
+      >
+        {isInCart ? (
+          <>
+            <Check size={14} className="stroke-[3px]" /> Sepette
+          </>
+        ) : (
+          <>
+            <ShoppingBag size={14} /> Sepete Ekle
+          </>
+        )}
+      </button>
       </div>
     </div>
   );

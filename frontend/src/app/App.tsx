@@ -148,6 +148,85 @@ export default function App() {
     fetchUserFavorites();
   }, [user]);
 
+  // --- YENİ ENTEGRASYON: KULLANICI GİRİŞ YAPTIĞINDA SEPETİ VERİTABANINDAN ÇEKME ---
+  useEffect(() => {
+    if (!user) {
+      setCartItems([]); // Kullanıcı çıkış yaparsa arayüzdeki sepeti boşalt
+      return;
+    }
+
+    async function fetchUserCart() {
+      try {
+        // Önceden Supabase'de oluşturduğumuz view'ı sorguluyoruz
+        const { data, error } = await supabase
+          .from("my_cart_with_prices")
+          .select("*");
+
+        if (error) {
+          // Eğer view henüz yoksa fallback olarak cart_items tablosundan id çekmeyi deneyelim
+          const fallback = await supabase
+            .from("cart_items")
+            .select("product_id, quantity")
+            .eq("user_id", user.id);
+            
+          if (!fallback.error && fallback.data) {
+            // Ana ürün listesindeki ürünlerle eşleştiriyoruz
+            const matchedProducts: Product[] = [];
+            fallback.data.forEach((item: any) => {
+              const found = products.find((p) => p.id === item.product_id.toString());
+              if (found) {
+                matchedProducts.push({ ...found, quantity: item.quantity });
+              }
+            });
+            setCartItems(matchedProducts);
+          }
+          return;
+        }
+
+        if (data && data.length > 0) {
+          // Gelen veriyi Product formatına map'liyoruz
+          const cartMap: Record<string, Product> = {};
+          
+          data.forEach((row: any) => {
+            const pid = row.product_id.toString();
+            if (!cartMap[pid]) {
+              // Ürün ana listemizde varsa onu baz al, yoksa view'dan oluştur
+              const existingProduct = products.find((p) => p.id === pid);
+              cartMap[pid] = existingProduct
+                ? { ...existingProduct, quantity: row.quantity }
+                : {
+                    id: pid,
+                    title: row.universal_name || "İsimsiz Ürün",
+                    brand: row.brand_name || "Markasız",
+                    image: row.image_url || "",
+                    quantity: row.quantity,
+                    stores: [],
+                  };
+            }
+            // Mağaza fiyatlarını ekliyoruz
+            if (row.market_name && row.current_price) {
+              const exists = cartMap[pid].stores.some((s) => s.name === row.market_name);
+              if (!exists) {
+                cartMap[pid].stores.push({
+                  name: row.market_name as StoreName,
+                  price: Number(row.current_price) || 0,
+                });
+              }
+            }
+          });
+          setCartItems(Object.values(cartMap));
+        }
+      } catch (err) {
+        console.error("Sepet verileri çekilirken hata oluştu:", err);
+      }
+    }
+
+    // Eğer ana ürünler yüklendiyse sepeti çek
+    if (products.length > 0) {
+      fetchUserCart();
+    }
+  }, [user, products]);
+
   // --- SUPABASE'DEN ÜRÜNLERİ VE FİYATLARI ÇEKME ---
   useEffect(() => {
     async function fetchProducts() {
@@ -228,17 +307,84 @@ export default function App() {
 
   const cartItemIds = new Set(cartItems.map((p) => p.id));
 
-  const handleAddToCart = (product: Product) => {
+// --- GÜNCELLENEN SEPETE EKLEME FONKSİYONU (SUPABASE ENTEGRELİ) ---
+  const handleAddToCart = async (product: Product) => {
+    // 1. Kullanıcı giriş yapmamışsa veritabanına yazamayız, login modalını aç!
+    if (!user) {
+      setAuthModalTab("login");
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    // 2. Arayüzü anında güncelle (Kullanıcıyı bekletmemek için Optimistic UI)
     setCartItems((prev) => {
-      if (prev.find((p) => p.id === product.id)) {
-        toast.info(`${product.brand} zaten sepette`);
-        return prev;
+      const existing = prev.find((p) => p.id === product.id);
+      if (existing) {
+        toast.info(`${product.brand} miktar artırıldı`);
+        return prev.map((p) =>
+          p.id === product.id ? { ...p, quantity: (p.quantity || 1) + 1 } : p
+        );
       }
       toast.success(`${product.brand} sepete eklendi ✓`, {
         style: { background: "#EBF5F0", border: "1px solid #A8D5C2", color: "#1B4332" },
       });
-      return [...prev, product];
+      return [...prev, { ...product, quantity: 1 }];
     });
+
+    // 3. Arka planda Supabase veritabanındaki RPC fonksiyonunu tetikle
+    try {
+      const { error } = await supabase.rpc("add_to_cart", {
+        p_product_id: parseInt(product.id, 10),
+        p_quantity: 1,
+      });
+
+      if (error) {
+        console.error("Supabase sepete ekleme hatası:", error.message);
+        toast.error("Sepet değişikliği veritabanına kaydedilemedi!");
+      }
+    } catch (err) {
+      console.error("Sepete eklerken beklenmeyen hata:", err);
+    }
+  };
+
+  // --- YENİ EKLENEN: SEPETTEKİ MİKTARI GÜNCELLEME ---
+  const handleUpdateQuantity = async (productId: string, newQuantity: number) => {
+    if (!user) return;
+
+    // Arayüzü anlık güncelle
+    setCartItems((prev) =>
+      newQuantity <= 0
+        ? prev.filter((p) => p.id !== productId)
+        : prev.map((p) => (p.id === productId ? { ...p, quantity: newQuantity } : p))
+    );
+
+    // Veritabanına bildir
+    try {
+      if (newQuantity <= 0) {
+        await supabase.rpc("remove_from_cart", { p_product_id: parseInt(productId, 10) });
+      } else {
+        await supabase.rpc("update_cart_quantity", {
+          p_product_id: parseInt(productId, 10),
+          p_quantity: newQuantity,
+        });
+      }
+    } catch (err) {
+      console.error("Miktar güncellenemedi:", err);
+    }
+  };
+
+  // --- GÜNCELLENEN SEPETTEN SİLME FONKSİYONU ---
+  const handleRemoveFromCart = async (id: string) => {
+    setCartItems((prev) => prev.filter((p) => p.id !== id));
+    toast.info("Ürün sepetten kaldırıldı");
+
+    if (user) {
+      try {
+        await supabase.rpc("remove_from_cart", { p_product_id: parseInt(id, 10) });
+      } catch (err) {
+        console.error("Supabase silme hatası:", err);
+      }
+    }
   };
 
   // --- DÜZELTME: FAVORİ EKLEME/SİLME FONKSİYONUNU SUPABASE'E BAĞLAMA ---
@@ -280,10 +426,10 @@ export default function App() {
     }
   };
 
-  const handleRemoveFromCart = (id: string) => {
-    setCartItems((prev) => prev.filter((p) => p.id !== id));
-    toast.info("Ürün sepetten kaldırıldı");
-  };
+  // const handleRemoveFromCart = (id: string) => {
+  //   setCartItems((prev) => prev.filter((p) => p.id !== id));
+  //   toast.info("Ürün sepetten kaldırıldı");
+  // };
 
   const handleSignOut = async () => {
     if (!supabase) return;
@@ -353,24 +499,32 @@ export default function App() {
             />
           </div>
         )}
+        {/* Sayfaların Gösterilmesi bölümünde ilgili satırları şu şekilde güncelleyin: */}
+
         {!loading && activeTab === "cart" && (
-          <CartOptimizer items={cartItems} onRemoveItem={handleRemoveFromCart} />
-        )}
-        {!loading && activeTab === "favorites" && (
-          <FavoritesPage
-            products={products}
-            favoriteIds={favoriteIds}
-            onToggleFavorite={handleToggleFavorite}
-            onAddToCart={handleAddToCart}
-            cartItemIds={cartItemIds}
-            user={user}
-            onOpenLogin={() => {
-              setAuthModalTab("login");
-              setIsAuthModalOpen(true);
-            }}
-            onOpenChart={openChart}
+          <CartOptimizer 
+            items={cartItems} 
+            onRemoveItem={handleRemoveFromCart}
+            onUpdateQuantity={handleUpdateQuantity} // <-- BU SATIR EKLENDİ
           />
         )}
+
+{!loading && activeTab === "favorites" && (
+  <FavoritesPage
+    products={products}
+    favoriteIds={favoriteIds}
+    onToggleFavorite={handleToggleFavorite}
+    onAddToCart={handleAddToCart}
+    // onUpdateQuantity={handleUpdateQuantity}  <-- BU SATIRI SİL
+    cartItemIds={cartItemIds}
+    user={user}
+    onOpenLogin={() => {
+      setAuthModalTab("login");
+      setIsAuthModalOpen(true);
+    }}
+    onOpenChart={openChart}
+  />
+)}
         {!loading && activeTab === "profile" && (
           <ProfilePage
             user={user}
