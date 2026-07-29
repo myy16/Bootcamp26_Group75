@@ -238,13 +238,17 @@ function OnboardingCard({
   onSave,
   onSkip,
 }: {
-  onSave: (skinType: string, hairType: string, concerns: string[]) => void;
+  onSave: (skinType: string, hairTypes: string[], concerns: string[]) => void;
   onSkip: () => void;
 }) {
   const [skinType, setSkinType] = useState<string>('');
-  const [hairType, setHairType] = useState<string>('');
+  const [hairTypes, setHairTypes] = useState<string[]>([]);
   const [concerns, setConcerns] = useState<string[]>([]);
   const [step, setStep] = useState(0);
+
+  const toggleHairType = (val: string) => {
+    setHairTypes(prev => prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]);
+  };
 
   const toggleConcern = (val: string) => {
     setConcerns(prev => prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]);
@@ -277,11 +281,11 @@ function OnboardingCard({
     },
     {
       title: 'Saç Tipin',
-      subtitle: 'Sana özel öneriler için saç tipini seç',
+      subtitle: 'Sana özel öneriler için saç tipini seç (birden fazla seçebilirsin)',
       items: HAIR_TYPES,
-      selected: hairType,
-      onClick: (v: string) => setHairType(v),
-      isMulti: false
+      selected: hairTypes,
+      onClick: (v: string) => toggleHairType(v),
+      isMulti: true
     },
     {
       title: 'Cilt Sorunların',
@@ -294,6 +298,9 @@ function OnboardingCard({
   ];
 
   const currentStep = steps[step];
+  const isStepValid = currentStep.isMulti
+    ? (currentStep.selected as string[]).length > 0
+    : Boolean(currentStep.selected);
 
   return (
     <div
@@ -367,10 +374,10 @@ function OnboardingCard({
           {step < steps.length - 1 ? (
             <button
               onClick={() => setStep((s) => s + 1)}
-              disabled={!currentStep.isMulti && !currentStep.selected}
+              disabled={!isStepValid}
               style={{
                 padding: '9px 20px', borderRadius: 8, border: 'none',
-                background: (!currentStep.isMulti && !currentStep.selected) ? '#D5D5CF' : '#2D6A4F',
+                background: !isStepValid ? '#D5D5CF' : '#2D6A4F',
                 color: '#FFFFFF', cursor: 'pointer', fontSize: 13, fontWeight: 600,
                 display: 'flex', alignItems: 'center', gap: 6,
               }}
@@ -379,11 +386,11 @@ function OnboardingCard({
             </button>
           ) : (
             <button
-              onClick={() => onSave(skinType, hairType, concerns)}
-              disabled={!skinType || !hairType}
+              onClick={() => onSave(skinType, hairTypes, concerns)}
+              disabled={!skinType || hairTypes.length === 0}
               style={{
                 padding: '9px 20px', borderRadius: 8, border: 'none',
-                background: (!skinType || !hairType) ? '#D5D5CF' : '#2D6A4F',
+                background: (!skinType || hairTypes.length === 0) ? '#D5D5CF' : '#2D6A4F',
                 color: '#FFFFFF', cursor: 'pointer', fontSize: 13, fontWeight: 600,
               }}
             >
@@ -779,9 +786,10 @@ export function ChatPage({
     }
   }, [pendingQuery, isLoading]);
 
-  const handleSaveOnboarding = async (skinType: string, hairType: string, selectedConcerns: string[]) => {
+  const handleSaveOnboarding = async (skinType: string, hairTypes: string[], selectedConcerns: string[]) => {
     localStorage.setItem("beautrics_onboarding_completed", "true");
     const activeUserId = getUserId();
+    const hairTypeStr = hairTypes.join(', ');
     
     try {
       if (user?.id) {
@@ -789,7 +797,7 @@ export function ChatPage({
           fullName: user.user_metadata?.full_name || '',
           currentEmail: user.email || undefined,
           skinTypeName: skinType,
-          hairTypeName: hairType,
+          hairTypeName: hairTypes[0] || '',
           skinConcernNames: selectedConcerns,
           onboardingCompleted: true,
         });
@@ -801,7 +809,7 @@ export function ChatPage({
         body: JSON.stringify({
           full_name: user?.user_metadata?.full_name || 'Kullanıcı',
           skin_type: skinType,
-          hair_type: hairType,
+          hair_type: hairTypeStr,
           skin_concerns: selectedConcerns,
           min_budget: null,
           max_budget: null
@@ -812,8 +820,9 @@ export function ChatPage({
     }
 
     // Construct message payload to submit onboarding selections
+    const hairText = hairTypes.length > 0 ? hairTypes.join(', ') : 'Belirtilmedi';
     const concernsText = selectedConcerns.length > 0 ? `, Cilt Sorunlarım: ${selectedConcerns.join(', ')}` : '';
-    const onboardingText = `Cildim ${skinType}, Saçım ${hairType}${concernsText}`;
+    const onboardingText = `Cildim ${skinType}, Saçım ${hairText}${concernsText}`;
     
     // Hide onboarding prompt from the last welcome message and proceed to send chat message
     setMessages(prev => prev.map(m => m.isOnboarding ? { ...m, isOnboarding: false } : m));

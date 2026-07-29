@@ -22,7 +22,7 @@ from test.database import (
 )
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/llama-3.3-70b-versatile")
 
 if not GROQ_API_KEY:
     raise RuntimeError(
@@ -34,6 +34,28 @@ client = OpenAI(
     api_key=GROQ_API_KEY,
     base_url="https://api.groq.com/openai/v1",
 )
+
+# === Live Dynamic AI Configuration (Managed via Admin Panel) ===
+AI_CONFIG: Dict[str, Any] = {
+    "active_model": GROQ_MODEL,
+    "temperature": 0.7,
+    "max_tokens": 400,
+    "system_prompt_override": "",
+}
+
+def get_ai_config() -> dict:
+    return AI_CONFIG
+
+def update_ai_config(new_config: dict) -> dict:
+    if "active_model" in new_config and new_config["active_model"]:
+        AI_CONFIG["active_model"] = str(new_config["active_model"])
+    if "temperature" in new_config and new_config["temperature"] is not None:
+        AI_CONFIG["temperature"] = float(new_config["temperature"])
+    if "max_tokens" in new_config and new_config["max_tokens"] is not None:
+        AI_CONFIG["max_tokens"] = int(new_config["max_tokens"])
+    if "system_prompt_override" in new_config:
+        AI_CONFIG["system_prompt_override"] = str(new_config["system_prompt_override"])
+    return AI_CONFIG
 # === Define State Schema ===
 class AgentState(BaseModel):
     user_id: str
@@ -577,6 +599,10 @@ def vector_rag_node(state: AgentState):
                 f"ÜRÜN LİSTESİ:\n{product_context}"
             )
 
+        # Allow system prompt override if specified in Admin Panel
+        if AI_CONFIG.get("system_prompt_override"):
+            system_prompt = f"{AI_CONFIG['system_prompt_override']}\n\nKULLANICI PROFİLİ:\n{profile_summary}\n\nÜRÜN LİSTESİ:\n{product_context}"
+
         # Sohbet geçmişini son 10 mesajla sınırla (token tasarrufu)
         recent_messages = state.messages[-10:] if len(state.messages) > 10 else state.messages
         messages_payload = [{"role": "system", "content": system_prompt}]
@@ -586,10 +612,10 @@ def vector_rag_node(state: AgentState):
 
         def make_call():
             return client.chat.completions.create(
-                model=GROQ_MODEL,
+                model=AI_CONFIG.get("active_model", GROQ_MODEL),
                 messages=messages_payload,
-                max_tokens=400,
-                temperature=0.7,
+                max_tokens=AI_CONFIG.get("max_tokens", 400),
+                temperature=AI_CONFIG.get("temperature", 0.7),
             )
 
         chat_response = retry_groq_call(make_call)

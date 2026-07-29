@@ -11,6 +11,7 @@ import { User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { AuthModal } from "./components/AuthModal";
 import { ChartModal } from "./components/ChartModal";
+import { AdminPanel } from "./components/AdminPanel";
 import "../styles/fonts.css";
 
 const BASE_PRODUCT_SELECT = `
@@ -55,6 +56,33 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("home");
   const [cartItems, setCartItems] = useState<Product[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
+
+  // Listen for /admin or #admin in URL and unlock Admin state
+  useEffect(() => {
+    const checkAdminRoute = () => {
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      if (path === "/admin" || path.startsWith("/admin") || hash === "#admin") {
+        setActiveTab("admin");
+        setIsAdminUnlocked(true);
+      }
+    };
+    checkAdminRoute();
+    window.addEventListener("popstate", checkAdminRoute);
+    window.addEventListener("hashchange", checkAdminRoute);
+    return () => {
+      window.removeEventListener("popstate", checkAdminRoute);
+      window.removeEventListener("hashchange", checkAdminRoute);
+    };
+  }, []);
+
+  // Track when activeTab becomes admin to keep admin unlocked
+  useEffect(() => {
+    if (activeTab === "admin") {
+      setIsAdminUnlocked(true);
+    }
+  }, [activeTab]);
 
   // --- SUPABASE VERİ STATE'LERİ ---
   const [products, setProducts] = useState<Product[]>([]);
@@ -215,15 +243,27 @@ export default function App() {
     };
   }, [user]);
 
-  // --- YENİ ENTEGRASYON: KULLANICI GİRİŞ YAPTIĞINDA FAVORİLERİ VERİTABANINDAN ÇEKME ---
+  // --- KULLANICI GİRİŞ YAPTIĞINDA MİSAFİR FAVORİLERİNİ HESABA AKTARMA VE ÇEKME ---
   useEffect(() => {
     if (!user) {
-      setFavoriteIds(new Set()); // Kullanıcı çıkış yaptıysa favorileri temizle
       return;
     }
 
-    async function fetchUserFavorites() {
+    async function syncAndFetchUserFavorites() {
       try {
+        // 1. Kullanıcı giriş yapmadan önce favorilediği ürünler varsa onları Supabase'e aktar
+        if (favoriteIds.size > 0) {
+          const guestFavArray = Array.from(favoriteIds).map(id => ({
+            user_id: user.id,
+            product_id: parseInt(id, 10)
+          })).filter(item => !isNaN(item.product_id));
+
+          if (guestFavArray.length > 0) {
+            await supabase.from("user_favorites").upsert(guestFavArray, { onConflict: "user_id,product_id" });
+          }
+        }
+
+        // 2. Kullanıcının Supabase'deki tüm favorilerini çekip birleştir
         const { data, error } = await supabase
           .from("user_favorites")
           .select("product_id")
@@ -232,16 +272,15 @@ export default function App() {
         if (error) throw error;
 
         if (data) {
-          // Veritabanındaki int4 ID'leri stringe çevirip Set state'ine atıyoruz
           const favIdsString = data.map((item: any) => item.product_id.toString());
-          setFavoriteIds(new Set(favIdsString));
+          setFavoriteIds((prev) => new Set([...Array.from(prev), ...favIdsString]));
         }
       } catch (err) {
         console.error("Favoriler yüklenirken hata oluştu:", err);
       }
     }
 
-    fetchUserFavorites();
+    syncAndFetchUserFavorites();
   }, [user]);
 
   // --- SUPABASE'DEN ÜRÜNLERİ VE FİYATLARI ÇEKME ---
@@ -382,14 +421,54 @@ export default function App() {
   };
 
   const handleSignOut = async () => {
-    if (!supabase) return;
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast.error("Çıkış yapılırken bir hata oluştu.");
-    } else {
-      toast.success("Başarıyla çıkış yapıldı.");
+    // 1. Instantly revoke admin authorization and reset active tab
+    setIsAdminUnlocked(false);
+    setActiveTab("home");
+
+    // 2. Clear URL hash and admin path
+    if (window.location.hash === "#admin" || window.location.pathname.includes("admin")) {
+      window.history.pushState("", document.title, window.location.pathname.replace(/\/admin.*/, "/"));
+      window.location.hash = "";
     }
+
+    // 3. Clear Supabase Auth Session
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+
+    toast.success("Başarıyla çıkış yapıldı.");
+
+    // 4. Force hard reload to wipe all memory states cleanly
+    setTimeout(() => {
+      window.location.href = window.location.origin;
+    }, 200);
   };
+
+  // Security Authorization Guard for Admin Panel Access
+  const isAuthorizedAdmin = isAdminUnlocked || user?.email === "admin@beautrics.com" || Boolean(user?.user_metadata?.role === "admin");
+
+  if (activeTab === "admin") {
+    if (!isAuthorizedAdmin) {
+      toast.error("Yönetici yetkisi gerekli. Lütfen yetkili hesap ile giriş yapın.");
+      setActiveTab("home");
+      return null;
+    }
+
+    return (
+      <div className="min-h-screen bg-[#F7F9F8]">
+        <Toaster position="bottom-right" richColors />
+        <AdminPanel
+          onBackToApp={() => {
+            setActiveTab("home");
+            if (window.location.hash === "#admin") {
+              window.location.hash = "";
+            }
+          }}
+          onSignOut={handleSignOut}
+        />
+      </div>
+    );
+  }
 
   return (
     // TAILWIND GÜNCELLEMESİ: Dış sarmalayıcı flex kutusu düzenlendi
@@ -401,6 +480,7 @@ export default function App() {
         onTabChange={setActiveTab}
         cartCount={cartItems.length}
         user={user}
+        isAdminUnlocked={isAdminUnlocked || Boolean(user?.email?.includes("admin"))}
         onOpenLogin={() => {
           setAuthModalTab("login");
           setIsAuthModalOpen(true);

@@ -16,6 +16,7 @@ import {
   Check,
   X,
   MessageSquare,
+  ShieldCheck,
 } from "lucide-react";
 import { User } from "@supabase/supabase-js"; 
 
@@ -24,7 +25,8 @@ export type ActiveTab =
   | "chat"
   | "cart"
   | "favorites"
-  | "profile";
+  | "profile"
+  | "admin";
 
 export interface ChatSession {
   id: string;
@@ -37,6 +39,7 @@ interface SidebarProps {
   onTabChange: (tab: ActiveTab) => void;
   cartCount: number;
   user: User | null;
+  isAdminUnlocked?: boolean;
   onOpenLogin: () => void;
   onOpenRegister: () => void;
   onSignOut: () => void;
@@ -54,6 +57,7 @@ export function Sidebar({
   onTabChange,
   cartCount,
   user,
+  isAdminUnlocked,
   onOpenLogin,
   onOpenRegister,
   onSignOut,
@@ -158,6 +162,26 @@ export function Sidebar({
           <Heart size={18} strokeWidth={activeTab === "favorites" ? 2.2 : 1.8} className="shrink-0" />
           <span className="text-[13.5px] flex-1">Favorilerim</span>
         </button>
+
+        {/* 4. YÖNETİM PANELİ (ADMİN PANELİ GEÇİŞİ) */}
+        {(isAdminUnlocked || user?.email?.includes('admin')) && (
+          <button
+            onClick={() => onTabChange("admin")}
+            className={`flex items-center gap-3 py-2.5 px-3.5 rounded-[10px] w-full text-left transition-all duration-200 ${
+              activeTab === "admin"
+                ? "bg-purple-900/90 text-white shadow-md font-semibold border border-purple-400/50"
+                : "bg-purple-950/40 text-purple-200 hover:bg-purple-900/50 border border-purple-500/30"
+            }`}
+          >
+            <ShieldCheck size={18} className="shrink-0 text-purple-300 animate-pulse" />
+            <span className="text-[13.5px] flex-1 font-semibold flex items-center justify-between">
+              Yönetim Paneli
+              <span className="bg-purple-400/20 text-purple-200 text-[9.5px] font-bold px-1.5 py-0.5 rounded border border-purple-400/30 uppercase tracking-wider">
+                Admin
+              </span>
+            </span>
+          </button>
+        )}
 
         {/* --- AYIRICI ÇİZGİ --- */}
         <div className="h-px bg-white/10 my-2 mx-1" />
