@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Toaster, toast } from "sonner";
-import { Sidebar, ActiveTab } from "./components/Sidebar";
+import { Sidebar, ActiveTab, ChatSession } from "./components/Sidebar";
 import { HomePage } from "./components/HomePage";
 import { ChatPage } from "./components/ChatPage";
 import { CartOptimizer } from "./components/CartOptimizer";
@@ -90,6 +90,80 @@ export default function App() {
     setPendingChatQuery(prompt);
     setChartProduct(null);
     setActiveTab("chat");
+  };
+
+  // --- CHAT SESSIONS (SOHBET GEÇMİŞİ SEANSLARI) STATE & ACTIONS ---
+  const [sessions, setSessions] = useState<ChatSession[]>(() => {
+    try {
+      const saved = localStorage.getItem(`beautrics_chat_sessions_${user?.id || 'guest'}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error("Error reading saved chat sessions:", e);
+    }
+    return [{ id: "session-1", title: "Cilt Bakım Asistanı", createdAt: Date.now() }];
+  });
+
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
+    return sessions[0]?.id || "session-1";
+  });
+
+  // Sync sessions to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(`beautrics_chat_sessions_${user?.id || 'guest'}`, JSON.stringify(sessions));
+    } catch (e) {
+      console.error("Error saving chat sessions:", e);
+    }
+  }, [sessions, user]);
+
+  const handleCreateNewSession = () => {
+    const newId = `session-${Date.now()}`;
+    const newSession: ChatSession = {
+      id: newId,
+      title: "Yeni Sohbet",
+      createdAt: Date.now(),
+    };
+    setSessions((prev) => [newSession, ...prev]);
+    setCurrentSessionId(newId);
+  };
+
+  const handleRenameSession = (sessionId: string, newTitle: string) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === sessionId ? { ...s, title: newTitle } : s))
+    );
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    const remaining = sessions.filter((s) => s.id !== sessionId);
+    if (remaining.length === 0) {
+      const freshId = `session-${Date.now()}`;
+      const freshSession: ChatSession = { id: freshId, title: "Cilt Bakım Asistanı", createdAt: Date.now() };
+      setSessions([freshSession]);
+      setCurrentSessionId(freshId);
+    } else {
+      setSessions(remaining);
+      if (currentSessionId === sessionId) {
+        setCurrentSessionId(remaining[0].id);
+      }
+    }
+  };
+
+  const handleAutoRenameSession = (sessionId: string, firstMessage: string) => {
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id === sessionId && s.title === "Yeni Sohbet") {
+          let cleanTitle = firstMessage.replace(/"/g, '').trim();
+          if (cleanTitle.length > 25) {
+            cleanTitle = cleanTitle.substring(0, 22) + "...";
+          }
+          return { ...s, title: cleanTitle || "Sohbet" };
+        }
+        return s;
+      })
+    );
   };
 
   // --- SUPABASE OTURUM DURUMUNU DİNLEME ---
@@ -336,6 +410,12 @@ export default function App() {
           setIsAuthModalOpen(true);
         }}
         onSignOut={handleSignOut}
+        sessions={sessions}
+        currentSessionId={currentSessionId}
+        onSelectSession={setCurrentSessionId}
+        onCreateNewSession={handleCreateNewSession}
+        onRenameSession={handleRenameSession}
+        onDeleteSession={handleDeleteSession}
       />
 
       {/* TAILWIND GÜNCELLEMESİ: Main içerik alanı sınıfları eklendi */}
@@ -375,6 +455,8 @@ export default function App() {
               user={user}
               pendingQuery={pendingChatQuery}
               onClearPendingQuery={() => setPendingChatQuery(null)}
+              currentSessionId={currentSessionId}
+              onAutoRenameSession={handleAutoRenameSession}
             />
           </div>
         )}

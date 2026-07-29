@@ -13,6 +13,8 @@ interface ChatPageProps {
   user?: SupabaseUser | null;
   pendingQuery?: string | null;
   onClearPendingQuery?: () => void;
+  currentSessionId?: string;
+  onAutoRenameSession?: (sessionId: string, firstMessage: string) => void;
 }
 
 interface Message {
@@ -558,7 +560,16 @@ function ProductListCard({ products, cartItemIds, onAddToCart }: { products: Pro
   );
 }
 
-export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user, pendingQuery, onClearPendingQuery }: ChatPageProps) {
+export function ChatPage({
+  onAddToCart,
+  cartItemIds,
+  onNavigateToCart,
+  user,
+  pendingQuery,
+  onClearPendingQuery,
+  currentSessionId,
+  onAutoRenameSession,
+}: ChatPageProps) {
   // Generate or retrieve a persistent test user UUID if not logged in
   const getUserId = () => {
     if (user?.id) return user.id;
@@ -571,26 +582,30 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user, pen
   };
 
   const userId = getUserId();
-  const sessionId = "session-v2";
-  const storageKey = `beautrics_chat_messages_${userId}`;
+  const sessionId = currentSessionId || "default_session";
+  const storageKey = `beautrics_chat_messages_${userId}_${sessionId}`;
 
-  const [messages, setMessages] = useState<Message[]>(() => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputVal, setInputVal] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Sync messages to/from localStorage per session
+  useEffect(() => {
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          setMessages(parsed);
+          return;
         }
       }
     } catch (e) {
       console.error("Error reading saved chat messages:", e);
     }
-    return [];
-  });
-  const [inputVal, setInputVal] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+    setMessages([]);
+  }, [storageKey]);
 
   // Sync messages to localStorage
   useEffect(() => {
@@ -603,10 +618,10 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user, pen
     }
   }, [messages, storageKey]);
 
-  // Initial Load: Check profile and greeting (preserves existing conversation when switching tabs)
+  // Initial Load: Check profile and greeting if session has no messages
   useEffect(() => {
     async function initChat() {
-      if (messages.length > 0) return; // Keep existing messages when switching tabs
+      if (messages.length > 0) return; // Keep existing messages if already present
       
       setIsLoading(true);
       try {
@@ -692,6 +707,12 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user, pen
 
     // 1. Add user message
     const userMsgId = `msg-${Date.now()}`;
+    // Auto-rename session if it's the first user message in this session
+    const hasUserMessages = messages.some(m => m.role === 'user');
+    if (!hasUserMessages) {
+      onAutoRenameSession?.(sessionId, text);
+    }
+
     const newMessages = [...messages, { id: userMsgId, role: 'user', content: text } as Message];
     setMessages(newMessages);
     setInputVal('');
@@ -700,21 +721,41 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user, pen
     try {
       // 2. Send request to backend
       const data = await sendChatMessage(userId, text, sessionId);
+      const fullResponse = data.response || 'Önerileriniz hazırlandı.';
 
       // 3. Map retrieved products
       const productsMapped = (data.retrieved_products || []).map(mapBackendProductToFrontend);
 
-      // 4. Add assistant message
+      // 4. Real-time progressive word streaming for live response generation
+      const assistantMsgId = `msg-${Date.now() + 1}`;
+      setIsLoading(false);
+
       setMessages(prev => [
         ...prev,
         {
-          id: `msg-${Date.now() + 1}`,
+          id: assistantMsgId,
           role: 'assistant',
-          content: data.response,
+          content: '',
           products: productsMapped,
           isOnboarding: false
         }
       ]);
+
+      const words = fullResponse.split(" ");
+      let index = 0;
+      let streamedContent = "";
+
+      const streamTimer = setInterval(() => {
+        if (index < words.length) {
+          streamedContent += (index === 0 ? "" : " ") + words[index];
+          index++;
+          setMessages(prev =>
+            prev.map(m => (m.id === assistantMsgId ? { ...m, content: streamedContent } : m))
+          );
+        } else {
+          clearInterval(streamTimer);
+        }
+      }, 25);
     } catch (err) {
       console.error("Error sending message:", err);
       setMessages(prev => [
@@ -962,7 +1003,7 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user, pen
           {['Nemlendirici önerisi', 'Akne için rutin', 'En ucuz maskara hangisi?', 'Yağlı cilt için güneş kremi'].map((q) => (
             <button
               key={q}
-              onClick={() => setInputVal(q)}
+              onClick={() => handleSendMessage(q)}
               style={{
                 padding: '5px 12px', borderRadius: 20, border: '1px solid #D5D5CF',
                 background: '#FFFFFF', color: '#666', cursor: 'pointer', fontSize: 12,

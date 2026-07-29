@@ -99,30 +99,16 @@ export function ProductCard({
           />
         </button>
 
-        {/* Hover action links (Sadece üzerine gelindiğinde görünür) */}
-        <div className="absolute bottom-2 right-2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-1 group-hover:translate-y-0 z-10">
-          {onAskAI && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAskAI(product);
-              }}
-              className="bg-[#1B4332] text-white rounded-md px-2.5 py-1 text-[11px] font-semibold flex items-center gap-1 backdrop-blur-sm hover:bg-[#153427] cursor-pointer shadow-sm"
-              title="Beautrics AI Asistanı'na sor"
-            >
-              <Sparkles size={11} className="text-[#FFB7B2]" /> AI'a Sor
-            </button>
-          )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenChart?.(product);
-            }}
-            className="bg-white/95 rounded-md px-2.5 py-1 text-[11px] font-semibold text-[#1B4332] flex items-center gap-1 backdrop-blur-sm hover:bg-white cursor-pointer"
-          >
-            Detay <ArrowRight size={12} />
-          </button>
-        </div>
+        {/* Hover detail link (Sadece üzerine gelindiğinde görünür) */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenChart?.(product);
+          }}
+          className="absolute bottom-2 right-2 bg-white/95 rounded-md px-2.5 py-1 text-[11px] font-semibold text-[#1B4332] flex items-center gap-1 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-1 group-hover:translate-y-0 hover:bg-white cursor-pointer z-10"
+        >
+          Detay <ArrowRight size={12} />
+        </button>
       </div>
 
       {/* --- CONTENT SECTION --- */}
