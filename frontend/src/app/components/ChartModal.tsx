@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import * as echarts from "echarts";
-import { X, ArrowDown, ArrowUp, BookOpen, FlaskConical, Target, TrendingUp, Info } from "lucide-react";
+import { X, ArrowDown, ArrowUp, BookOpen, FlaskConical, Target, TrendingUp, Info, Sparkles } from "lucide-react";
 import { supabase } from "../supabase";
 import { STORE_COLORS, StoreName } from "../data";
 
@@ -34,6 +34,7 @@ interface ChartModalProps {
   onClose: () => void;
   productId: string | null;
   productTitle?: string;
+  onAskAI?: () => void;
 }
 
 type RangeKey = "6M" | "1M" | "1W" | "F15";
@@ -100,6 +101,7 @@ export function ChartModal({
   onClose,
   productId,
   productTitle,
+  onAskAI,
 }: ChartModalProps) {
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<PriceLogRow[]>([]);
@@ -408,12 +410,23 @@ export function ChartModal({
           <h2 className="text-base font-bold text-white pr-4 line-clamp-1">
             {productTitle || "Ürün"} Detay & Analiz
           </h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-white/10 hover:text-white transition-colors shrink-0"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2.5 shrink-0">
+            {onAskAI && (
+              <button
+                onClick={onAskAI}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EBF5F0] text-[#1B4332] hover:bg-white text-[12.5px] font-bold transition-all shadow-sm cursor-pointer"
+                title="Bu ürünü Beautrics AI Asistanı'na sor"
+              >
+                <Sparkles size={14} className="text-[#2D6A4F]" /> AI'a Sor
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-white/10 hover:text-white transition-colors shrink-0 cursor-pointer"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Tab Bar */}

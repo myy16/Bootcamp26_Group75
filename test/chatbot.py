@@ -469,25 +469,32 @@ def vector_rag_node(state: AgentState):
     profile = state.profile_context
     last_msg = get_last_user_message(state.messages)
 
-    # Etkin bütçeyi hesapla
     effective_budget = get_effective_budget(profile, state.chat_budget_override)
 
     try:
         matched_products = []
 
-        # 1. Try vector similarity search (OpenAI Embeddings) first
-        try:
-            profile_summary = f"Cilt Tipi: {profile.get('skin_type', 'normal')}, Saç Tipi: {profile.get('hair_type', 'normal')}"
-            search_query = f"{last_msg}. {profile_summary}"
+        # 0. Check if query contains a specific product name in quotes (from "AI'a Sor" button)
+        quoted_match = re.findall(r'"([^"]+)"', last_msg)
+        if quoted_match:
+            exact_p = get_product_by_name(quoted_match[0])
+            if exact_p:
+                matched_products = [exact_p]
 
-            emb_res = client.embeddings.create(
-                model="text-embedding-3-small",
-                input=search_query
-            )
-            query_embedding = emb_res.data[0].embedding
-            matched_products = match_products(query_embedding, match_count=3)
-        except Exception as emb_err:
-            print(f"Vector search failed or not configured: {emb_err}")
+        # 1. Try vector similarity search (OpenAI Embeddings) first
+        if not matched_products:
+            try:
+                profile_summary = f"Cilt Tipi: {profile.get('skin_type', 'normal')}, Saç Tipi: {profile.get('hair_type', 'normal')}"
+                search_query = f"{last_msg}. {profile_summary}"
+
+                emb_res = client.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=search_query
+                )
+                query_embedding = emb_res.data[0].embedding
+                matched_products = match_products(query_embedding, match_count=3)
+            except Exception as emb_err:
+                print(f"Vector search failed or not configured: {emb_err}")
 
         # Collect previously recommended product IDs for dynamic rotation
         previously_recommended = state.last_recommended_products or []
@@ -495,19 +502,12 @@ def vector_rag_node(state: AgentState):
 
         msg_lower = (last_msg or "").lower()
         wants_out_of_stock = "stok dışı" in msg_lower or "stokta olmayan" in msg_lower or "stokta yok" in msg_lower
-<<<<<<< HEAD
         target_store = detect_store_name(last_msg)
-=======
->>>>>>> 183307c550005a497f9ff243c3b2146c882bc377
 
         # 2. Fallback to profile-based category search with dynamic rotation & stock filter
         if not matched_products:
             matched_products = search_products_by_profile(
-<<<<<<< HEAD
                 profile, last_msg, match_count=3, exclude_ids=exclude_ids, allow_out_of_stock=wants_out_of_stock, store_name=target_store
-=======
-                profile, last_msg, match_count=3, exclude_ids=exclude_ids, allow_out_of_stock=wants_out_of_stock
->>>>>>> 183307c550005a497f9ff243c3b2146c882bc377
             )
 
         # 3. Fallback to keyword search
@@ -548,18 +548,34 @@ def vector_rag_node(state: AgentState):
         )
 
         # 8. Groq için güvenli ve sınırlı sistem talimatı
-        system_prompt = (
-            "Sen Beautrics kozmetik danışmanısın. "
-            "Kullanıcının profiline uygun ürün önerisi yap.\n\n"
-            "KATI KURALLAR:\n"
-            "1. Kullanıcıya özel kısa, nazik ve yönlendirici 1-2 cümlelik bir giriş cümlesi yaz.\n"
-            "2. Ürün isimlerini veya linklerini metin içinde tekrar liste olarak yazma (ürünler alttaki interaktif kartta gösterilecek).\n"
-            "3. En ucuz seçeneğe veya kullanıcının aradığı kritere kısaca değinebilirsin.\n"
-            "4. Emoji kullanma.\n"
-            "5. En fazla 40 kelime kullan.\n\n"
-            f"KULLANICI PROFİLİ:\n{profile_summary}\n\n"
-            f"ÜRÜN LİSTESİ:\n{product_context}"
-        )
+        is_product_inquiry = any(k in msg_lower for k in ["hakkında bilgi", "profilime uygun mu", "nasıl kullanmalı", "nasıl kullanmalıyım", "ürünü hakkında", "ürünün özellikleri"])
+
+        if is_product_inquiry:
+            system_prompt = (
+                "Sen Beautrics uzman kozmetik ve cilt bakım danışmanısın. "
+                "Kullanıcı belirli bir ürün hakkında detaylı bilgi ve profiline uygunluk soruyor.\n\n"
+                "KURALLAR:\n"
+                "1. Ürünün kullanıcının cilt/saç tipi ve cilt endişeleriyle neden uyumlu olduğunu açıkla.\n"
+                "2. Ürünün ana faydalarını ve nasıl/ne zaman kullanılması gerektiğini (örneğin akşam temizlik sonrası, rutinin son adımı olarak) belirt.\n"
+                "3. En uygun fiyat ve mağaza bilgisinden kısaca bahset.\n"
+                "4. Emoji kullanma. Samimi, uzman ve yardımsever bir dil kullan.\n"
+                "5. Yanıtı maksimum 3-4 öz ve doyurucu cümle ile ver.\n\n"
+                f"KULLANICI PROFİLİ:\n{profile_summary}\n\n"
+                f"ÜRÜN LİSTESİ VE DETAYLARI:\n{product_context}"
+            )
+        else:
+            system_prompt = (
+                "Sen Beautrics kozmetik danışmanısın. "
+                "Kullanıcının profiline uygun ürün önerisi yap.\n\n"
+                "KATI KURALLAR:\n"
+                "1. Kullanıcıya özel kısa, nazik ve yönlendirici 1-2 cümlelik bir giriş cümlesi yaz.\n"
+                "2. Ürün isimlerini veya linklerini metin içinde tekrar liste olarak yazma (ürünler alttaki interaktif kartta gösterilecek).\n"
+                "3. En ucuz seçeneğe veya kullanıcının aradığı kritere kısaca değinebilirsin.\n"
+                "4. Emoji kullanma.\n"
+                "5. En fazla 40 kelime kullan.\n\n"
+                f"KULLANICI PROFİLİ:\n{profile_summary}\n\n"
+                f"ÜRÜN LİSTESİ:\n{product_context}"
+            )
 
         # Sohbet geçmişini son 10 mesajla sınırla (token tasarrufu)
         recent_messages = state.messages[-10:] if len(state.messages) > 10 else state.messages

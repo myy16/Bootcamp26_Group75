@@ -664,12 +664,8 @@ def search_products_by_profile(
     user_message: str,
     match_count: int = 3,
     exclude_ids: list = None,
-<<<<<<< HEAD
     allow_out_of_stock: bool = False,
     store_name: str = None
-=======
-    allow_out_of_stock: bool = False
->>>>>>> 183307c550005a497f9ff243c3b2146c882bc377
 ) -> list:
     """
     Finds products that match the user's skin/hair profile and query category.

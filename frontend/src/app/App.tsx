@@ -6,7 +6,7 @@ import { ChatPage } from "./components/ChatPage";
 import { CartOptimizer } from "./components/CartOptimizer";
 import { FavoritesPage } from "./components/FavoritesPage";
 import { ProfilePage } from "./components/ProfilePage";
-import { Product, StoreName } from "./data";
+import { Product, StoreName, getCheapestStore } from "./data";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { AuthModal } from "./components/AuthModal";
@@ -69,6 +69,28 @@ export default function App() {
   // --- FİYAT ANALİZİ (CHART) MODAL STATE'İ ---
   const [chartProduct, setChartProduct] = useState<Product | null>(null);
   const openChart = (product: Product) => setChartProduct(product);
+
+  // --- AI'A SOR SOHBET YÖNLENDİRME STATE'İ VE AKSİYONU ---
+  const [pendingChatQuery, setPendingChatQuery] = useState<string | null>(null);
+
+  const handleAskAI = (product: Product) => {
+    const brandName = product.brand ? product.brand.trim() : "";
+    const titleName = product.title ? product.title.trim() : "";
+    const fullProductName = (brandName && titleName.toLowerCase().startsWith(brandName.toLowerCase()))
+      ? titleName
+      : `${brandName} ${titleName}`.trim();
+
+    const cheapestStore = getCheapestStore(product.stores);
+    const storeInfo = cheapestStore && cheapestStore.price > 0 
+      ? ` (${cheapestStore.name} mağazasında en uygun fiyat: ${cheapestStore.price} ₺)` 
+      : "";
+
+    const prompt = `"${fullProductName}"${storeInfo} ürünü hakkında detaylı bilgi verir misin? Bu ürün benim cilt ve saç profilime uygun mu, ana faydaları nelerdir ve nasıl kullanmalıyım?`;
+    
+    setPendingChatQuery(prompt);
+    setChartProduct(null);
+    setActiveTab("chat");
+  };
 
   // --- SUPABASE OTURUM DURUMUNU DİNLEME ---
   useEffect(() => {
@@ -340,6 +362,7 @@ export default function App() {
               setIsAuthModalOpen(true);
             }}
             onOpenChart={openChart}
+            onAskAI={handleAskAI}
           />
         )}
         {!loading && (
@@ -350,6 +373,8 @@ export default function App() {
               cartItemIds={cartItemIds}
               onNavigateToCart={() => setActiveTab("cart")}
               user={user}
+              pendingQuery={pendingChatQuery}
+              onClearPendingQuery={() => setPendingChatQuery(null)}
             />
           </div>
         )}
@@ -369,6 +394,7 @@ export default function App() {
               setIsAuthModalOpen(true);
             }}
             onOpenChart={openChart}
+            onAskAI={handleAskAI}
           />
         )}
         {!loading && activeTab === "profile" && (
@@ -398,6 +424,7 @@ export default function App() {
         productId={chartProduct?.id ?? null}
         productTitle={chartProduct?.title}
         onClose={() => setChartProduct(null)}
+        onAskAI={() => chartProduct && handleAskAI(chartProduct)}
       />
     </div>
   );

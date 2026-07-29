@@ -11,6 +11,8 @@ interface ChatPageProps {
   cartItemIds: Set<string>;
   onNavigateToCart: () => void;
   user?: SupabaseUser | null;
+  pendingQuery?: string | null;
+  onClearPendingQuery?: () => void;
 }
 
 interface Message {
@@ -556,7 +558,7 @@ function ProductListCard({ products, cartItemIds, onAddToCart }: { products: Pro
   );
 }
 
-export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: ChatPageProps) {
+export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user, pendingQuery, onClearPendingQuery }: ChatPageProps) {
   // Generate or retrieve a persistent test user UUID if not logged in
   const getUserId = () => {
     if (user?.id) return user.id;
@@ -727,6 +729,14 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
       setIsLoading(false);
     }
   };
+
+  // Auto-send pending query if triggered from ProductCard or ChartModal "AI'a Sor" button
+  useEffect(() => {
+    if (pendingQuery && pendingQuery.trim() && !isLoading) {
+      handleSendMessage(pendingQuery);
+      onClearPendingQuery?.();
+    }
+  }, [pendingQuery, isLoading]);
 
   const handleSaveOnboarding = async (skinType: string, hairType: string, selectedConcerns: string[]) => {
     localStorage.setItem("beautrics_onboarding_completed", "true");

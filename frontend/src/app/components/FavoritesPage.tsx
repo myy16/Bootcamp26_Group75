@@ -7,6 +7,7 @@ import {
   ShoppingBag,
   LogIn,
   ArrowRight,
+  Sparkles,
 } from "lucide-react";
 import { PRODUCTS, STORE_COLORS, Product } from "../data";
 import { User } from "@supabase/supabase-js";
@@ -17,6 +18,7 @@ interface FavoritesPageProps {
   onToggleFavorite: (id: string) => void;
   onAddToCart: (product: Product) => void;
   onOpenChart: (product: Product) => void;
+  onAskAI?: (product: Product) => void;
   cartItemIds: Set<string>;
   user: User | null;
   onOpenLogin: () => void;
@@ -159,6 +161,7 @@ export function FavoritesPage({
   user,
   onOpenLogin,
   onOpenChart,
+  onAskAI,
 }: FavoritesPageProps) {
   const [notifications, setNotifications] = useState<Set<string>>(
     new Set(),
@@ -401,17 +404,28 @@ export function FavoritesPage({
                     </div>
                   )}
 
-                  <div className=" flex gap-3 border-t border-[#EFEFEA] p-4">
+                  <div className="flex items-center gap-2 border-t border-[#EFEFEA] p-4">
+                    {onAskAI && (
+                      <button
+                        type="button"
+                        onClick={() => onAskAI(product)}
+                        className="flex items-center justify-center gap-1.5 py-3 px-3 rounded-xl bg-[#EBF5F0] text-[#2D6A4F] hover:bg-[#DDF0E6] text-xs font-bold transition-colors shrink-0 border border-[#52B788]/30 cursor-pointer"
+                        title="Bu ürünü Beautrics AI Asistanı'na sor"
+                      >
+                        <Sparkles size={14} className="text-[#2D6A4F]" /> AI'a Sor
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => onAddToCart(product)}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors ${
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-semibold transition-colors cursor-pointer ${
                         isInCart
                           ? "bg-[#EBF5F0] text-[#2D6A4F]"
                           : "bg-[#2D6A4F] text-white hover:bg-[#1B4332]"
                       }`}
                     >
-                      <ShoppingBag size={16} />
+                      <ShoppingBag size={15} />
                       {isInCart ? "Sepette" : "Sepete Ekle"}
                     </button>
 
@@ -422,7 +436,7 @@ export function FavoritesPage({
                           ? "Alarm kurulu"
                           : "Fiyat alarmı kur"
                       }
-                      className={`flex items-center justify-center gap-1.5 py-2 px-3.5 rounded-lg border-[1.5px] text-xs font-medium transition-colors ${
+                      className={`flex items-center justify-center gap-1 py-3 px-2.5 rounded-xl border-[1.5px] text-xs font-medium transition-colors cursor-pointer ${
                         hasNotification
                           ? "border-[#2D6A4F] bg-[#EBF5F0] text-[#2D6A4F]"
                           : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
@@ -432,7 +446,7 @@ export function FavoritesPage({
                         size={14}
                         className={hasNotification ? "fill-[#2D6A4F]" : ""}
                       />
-                      {hasNotification ? "Alarm Kurulu" : "Alarm Kur"}
+                      {hasNotification ? "Kurulu" : "Alarm"}
                     </button>
                   </div>
                 </article>
