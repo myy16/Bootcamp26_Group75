@@ -39,12 +39,31 @@ export function ProductCard({
   onOpenChart,
   onAskAI,
 }: ProductCardProps) {
-  const validStores = (product.stores || []).filter(
-    (s) => s.price > 0,
-  );
+  // Store listesini normalize et ve tekrar eden mağazaları teke düşür (Deduplication)
+  const storeMap: Record<string, { name: StoreName; price: number }> = {};
+
+  (product.stores || []).forEach((s) => {
+    if (s.price > 0) {
+      const lower = (s.name || "").toLowerCase().trim();
+      let normalizedName: StoreName = "Gratis";
+      if (lower.includes("rossmann")) normalizedName = "Rossmann";
+      else if (lower.includes("watsons")) normalizedName = "Watsons";
+      else if (lower.includes("gratis")) normalizedName = "Gratis";
+      else if (lower.includes("mion") || lower.includes("migros")) normalizedName = "Mion";
+      else if (s.name) normalizedName = s.name as StoreName;
+
+      if (!storeMap[normalizedName] || s.price < storeMap[normalizedName].price) {
+        storeMap[normalizedName] = { name: normalizedName, price: s.price };
+      }
+    }
+  });
+
+  const validStores = Object.values(storeMap);
+
   if (validStores.length === 0) {
     return null;
   }
+
   const cheapest = validStores.reduce(
     (min, s) => (s.price < min.price ? s : min),
     validStores[0],
@@ -125,9 +144,11 @@ export function ProductCard({
       >
         {/* Brand & title */}
         <div>
-          <div className="text-[10px] font-semibold text-[#2D6A4F] tracking-[0.6px] uppercase mb-0.5">
-            {product.brand}
-          </div>
+          {product.brand && product.brand.toLowerCase() !== "beautrics" && (
+            <div className="text-[10px] font-semibold text-[#2D6A4F] tracking-[0.6px] uppercase mb-0.5">
+              {product.brand}
+            </div>
+          )}
           <div className="text-[13.5px] font-bold text-[#1A1A1A] leading-snug line-clamp-2 min-h-10">
             {product.title}
           </div>

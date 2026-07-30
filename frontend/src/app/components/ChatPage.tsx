@@ -61,11 +61,24 @@ const mapBackendProductToFrontend = (bp: any): Product => {
 
   const defaultImg = categoryFallbackImages[bp.category_name] || "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=300&q=80";
 
+  let brandName = bp.brand?.name || bp.brand_name || (typeof bp.brand === "string" ? bp.brand : "");
+  if (!brandName || brandName.toLowerCase() === "beautrics") {
+    const titleStr = (bp.universal_name || bp.title || "").trim();
+    const firstWord = titleStr.split(" ")[0];
+    brandName = firstWord && firstWord.length > 1 ? firstWord : "";
+  }
+
+  const rawTitle = bp.universal_name || bp.title || "Önerilen Bakım Ürünü";
+  let titleStr = rawTitle.trim();
+  if (brandName && titleStr.toLowerCase().startsWith(brandName.toLowerCase())) {
+    titleStr = titleStr.substring(brandName.length).trim();
+  }
+
   return {
     id: (bp.id || Math.random()).toString(),
     image: bp.image_url && bp.image_url.startsWith("http") ? bp.image_url : defaultImg,
-    brand: bp.brand?.name || bp.brand_name || bp.brand || "Beautrics",
-    title: bp.universal_name || bp.title || "Önerilen Bakım Ürünü",
+    brand: brandName,
+    title: titleStr || rawTitle,
     category: bp.category_name || bp.category || "Cilt Bakımı",
     stores: storesData,
   };
@@ -403,7 +416,7 @@ function OnboardingCard({
   );
 }
 
-function ProductListCard({ products, cartItemIds, onAddToCart }: { products: Product[]; cartItemIds: Set<string>; onAddToCart: (p: Product) => void; }) {
+function ProductListCard({ products, cartItemIds, onAddToCart, showComparison = true }: { products: Product[]; cartItemIds: Set<string>; onAddToCart: (p: Product) => void; showComparison?: boolean; }) {
   if (products.length === 0) return null;
 
   // Sepet Optimizasyon Bilgilerini Hesapla
@@ -484,7 +497,7 @@ function ProductListCard({ products, cartItemIds, onAddToCart }: { products: Pro
                     {p.category}
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#1A1A1A', lineHeight: 1.3, marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {p.brand} {p.title}
+                    {p.brand && p.brand.toLowerCase() !== "beautrics" ? `${p.brand} ${p.title}` : p.title}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div
@@ -523,8 +536,8 @@ function ProductListCard({ products, cartItemIds, onAddToCart }: { products: Pro
         </div>
       </div>
 
-      {/* Karşılaştırma Kartı (Eğer Fiyat Bilgisi Varsa) */}
-      {minStoreEntry && (
+      {/* Karşılaştırma Kartı (Eğer Fiyat Bilgisi Varsa ve Son Mesaj ise) */}
+      {showComparison && minStoreEntry && (
         <div
           style={{
             background: '#FFFFFF', borderRadius: 16, border: '1.5px solid #E8E8E2',
@@ -899,7 +912,7 @@ export function ChatPage({
           display: 'flex', flexDirection: 'column', gap: 20,
         }}
       >
-        {messages.map((m) => {
+        {messages.map((m, msgIdx) => {
           const isUser = m.role === 'user';
           return (
             <div 
@@ -946,6 +959,7 @@ export function ChatPage({
                     products={m.products} 
                     cartItemIds={cartItemIds} 
                     onAddToCart={onAddToCart} 
+                    showComparison={msgIdx === messages.length - 1 || messages.slice(msgIdx + 1).every(nm => !nm.products || nm.products.length === 0)}
                   />
                 )}
               </div>

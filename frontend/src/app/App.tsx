@@ -393,17 +393,25 @@ export default function App() {
         }
 
         const formattedProducts: Product[] = data.map((item: any) => {
-          const storesData = (item.store_mappings || []).map((sm: any) => {
-            const rawMarketName = sm.markets?.name || "Mion";
-            const formattedMarketName =
-              rawMarketName.charAt(0).toUpperCase() +
-              rawMarketName.slice(1).toLowerCase();
+          const storeMap: Record<string, { name: StoreName; price: number }> = {};
 
-            return {
-              name: formattedMarketName as StoreName,
-              price: Number(sm.current_price) || 0,
-            };
+          (item.store_mappings || []).forEach((sm: any) => {
+            const price = Number(sm.current_price) || 0;
+            if (price > 0) {
+              const rawMarketName = (sm.markets?.name || "").toLowerCase().trim();
+              let normName: StoreName = "Gratis";
+              if (rawMarketName.includes("rossmann")) normName = "Rossmann";
+              else if (rawMarketName.includes("watsons")) normName = "Watsons";
+              else if (rawMarketName.includes("gratis")) normName = "Gratis";
+              else if (rawMarketName.includes("mion") || rawMarketName.includes("migros")) normName = "Mion";
+
+              if (!storeMap[normName] || price < storeMap[normName].price) {
+                storeMap[normName] = { name: normName, price: price };
+              }
+            }
           });
+
+          const storesData = Object.values(storeMap);
 
           return {
             id: item.id.toString(),
