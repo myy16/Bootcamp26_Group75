@@ -22,7 +22,13 @@ from test.database import (
 )
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/llama-3.3-70b-versatile")
+RAW_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL = RAW_MODEL.replace("groq/", "").replace("openai/", "").strip() or "llama-3.3-70b-versatile"
+
+def get_clean_model_name(model_name: str = None) -> str:
+    m = model_name or AI_CONFIG.get("active_model") or GROQ_MODEL or "llama-3.3-70b-versatile"
+    m = str(m).replace("groq/", "").replace("openai/", "").strip()
+    return m if m else "llama-3.3-70b-versatile"
 
 if not GROQ_API_KEY:
     raise RuntimeError(
@@ -197,7 +203,7 @@ def extract_profile_info(user_message: str) -> dict:
 
         def make_call():
             return client.chat.completions.create(
-                model=GROQ_MODEL,
+                model=get_clean_model_name(),
                 messages=[
                     {"role": "system", "content": "Sen bir kozmetik profil çıkarıcısısın."},
                     {"role": "user", "content": prompt}
@@ -268,7 +274,7 @@ def determine_intent(user_message: str) -> str:
 
         def make_call():
             return client.chat.completions.create(
-                model=GROQ_MODEL,
+                model=get_clean_model_name(),
                 messages=[
                     {
                         "role": "system",
@@ -460,7 +466,7 @@ def general_chat_node(state: AgentState):
 
         def make_call():
             return client.chat.completions.create(
-                model=GROQ_MODEL,
+                model=get_clean_model_name(),
                 messages=messages_payload,
                 max_tokens=250,
                 temperature=0.7
@@ -496,12 +502,19 @@ def vector_rag_node(state: AgentState):
     try:
         matched_products = []
 
-        # 0. Check if query contains a specific product name in quotes (from "AI'a Sor" button)
-        quoted_match = re.findall(r'"([^"]+)"', last_msg)
-        if quoted_match:
-            exact_p = get_product_by_name(quoted_match[0])
+        # 0. Check if query contains product ID tag [ID:xxx] or specific product name in quotes
+        id_match = re.search(r'\[ID:(\d+)\]', last_msg) or re.search(r'id:(\d+)', last_msg, re.IGNORECASE)
+        if id_match:
+            exact_p = get_product_by_id(int(id_match.group(1)))
             if exact_p:
                 matched_products = [exact_p]
+
+        if not matched_products:
+            quoted_match = re.findall(r'"([^"]+)"', last_msg)
+            if quoted_match:
+                exact_p = get_product_by_name(quoted_match[0])
+                if exact_p:
+                    matched_products = [exact_p]
 
         # 1. Try vector similarity search (OpenAI Embeddings) first
         if not matched_products:
@@ -612,7 +625,7 @@ def vector_rag_node(state: AgentState):
 
         def make_call():
             return client.chat.completions.create(
-                model=AI_CONFIG.get("active_model", GROQ_MODEL),
+                model=get_clean_model_name(AI_CONFIG.get("active_model")),
                 messages=messages_payload,
                 max_tokens=AI_CONFIG.get("max_tokens", 400),
                 temperature=AI_CONFIG.get("temperature", 0.7),
@@ -637,12 +650,13 @@ def vector_rag_node(state: AgentState):
 
     except Exception as e:
         print(f"Error in vector_rag_node: {e}")
-        fallback_content = build_product_response([])
+        fallback_content = build_product_response(matched_products)
         new_messages = state.messages.copy()
         new_messages.append({"role": "assistant", "content": fallback_content})
         return {
             "messages": new_messages,
-            "retrieved_products": [],
+            "retrieved_products": matched_products,
+            "last_recommended_products": matched_products,
         }
 
 
@@ -675,7 +689,7 @@ def alternative_rag_node(state: AgentState):
                 )
                 def make_call():
                     return client.chat.completions.create(
-                        model=GROQ_MODEL,
+                        model=get_clean_model_name(),
                         messages=[{"role": "user", "content": prompt}],
                         max_tokens=50,
                         temperature=0.0,
@@ -773,7 +787,7 @@ def alternative_rag_node(state: AgentState):
 
         def make_call():
             return client.chat.completions.create(
-                model=GROQ_MODEL,
+                model=get_clean_model_name(AI_CONFIG.get("active_model")),
                 messages=messages_payload,
                 max_tokens=400,
                 temperature=0.7,

@@ -186,28 +186,6 @@ export function ProductCard({
 })}
         </div>
 
-<<<<<<< HEAD
-        {/* Add to cart button */}
-       <button
-        onClick={handleAddToCartClick}
-        disabled={isInCart} // Zaten sepetteyse tekrar basılmasını isteğe bağlı engelleyebilirsiniz
-        className={`flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl w-full text-[13px] font-semibold transition-colors duration-200 mt-auto ${
-          isInCart
-            ? "bg-[#EBF5F0] text-[#2D6A4F] cursor-default"
-            : "bg-[#1B4332] text-white hover:bg-[#153427] shadow-md shadow-[#1B4332]/20"
-        }`}
-      >
-        {isInCart ? (
-          <>
-            <Check size={14} className="stroke-[3px]" /> Sepette
-          </>
-        ) : (
-          <>
-            <ShoppingBag size={14} /> Sepete Ekle
-          </>
-        )}
-      </button>
-=======
         {/* Action buttons (AI'a Sor & Sepete Ekle) */}
         <div className="flex items-center gap-2 mt-1">
           {onAskAI && (
@@ -224,10 +202,7 @@ export function ProductCard({
           )}
 
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddToCart(product);
-            }}
+            onClick={handleAddToCartClick}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-[13px] font-semibold transition-colors duration-200 cursor-pointer ${
               isInCart
                 ? "bg-[#EBF5F0] text-[#2D6A4F] hover:bg-[#DDF0E6]"
@@ -236,8 +211,7 @@ export function ProductCard({
           >
             {isInCart ? (
               <>
-                <Check size={14} className="stroke-[3px]" />{" "}
-                Sepette
+                <Check size={14} className="stroke-[3px]" /> Sepette
               </>
             ) : (
               <>
@@ -246,7 +220,6 @@ export function ProductCard({
             )}
           </button>
         </div>
->>>>>>> d5a5cd89936616b3ffc8aec3875f8bec1567ab54
       </div>
     </div>
   );

@@ -113,7 +113,7 @@ export default function App() {
       ? ` (${cheapestStore.name} mağazasında en uygun fiyat: ${cheapestStore.price} ₺)` 
       : "";
 
-    const prompt = `"${fullProductName}"${storeInfo} ürünü hakkında detaylı bilgi verir misin? Bu ürün benim cilt ve saç profilime uygun mu, ana faydaları nelerdir ve nasıl kullanmalıyım?`;
+    const prompt = `[ID:${product.id}] "${fullProductName}"${storeInfo} ürünü hakkında detaylı bilgi verir misin? Bu ürün benim cilt ve saç profilime uygun mu, ana faydaları nelerdir ve nasıl kullanmalıyım?`;
     
     setPendingChatQuery(prompt);
     setChartProduct(null);
@@ -686,16 +686,12 @@ export default function App() {
             />
           </div>
         )}
-        {/* Sayfaların Gösterilmesi bölümünde ilgili satırları şu şekilde güncelleyin: */}
-
         {!loading && activeTab === "cart" && (
-<<<<<<< HEAD
           <CartOptimizer 
             items={cartItems} 
             onRemoveItem={handleRemoveFromCart}
-            onUpdateQuantity={handleUpdateQuantity} // <-- BU SATIR EKLENDİ
-=======
-          <CartOptimizer items={cartItems} onRemoveItem={handleRemoveFromCart} />
+            onUpdateQuantity={handleUpdateQuantity}
+          />
         )}
         {!loading && activeTab === "favorites" && (
           <FavoritesPage
@@ -711,26 +707,8 @@ export default function App() {
             }}
             onOpenChart={openChart}
             onAskAI={handleAskAI}
->>>>>>> d5a5cd89936616b3ffc8aec3875f8bec1567ab54
           />
         )}
-
-{!loading && activeTab === "favorites" && (
-  <FavoritesPage
-    products={products}
-    favoriteIds={favoriteIds}
-    onToggleFavorite={handleToggleFavorite}
-    onAddToCart={handleAddToCart}
-    // onUpdateQuantity={handleUpdateQuantity}  <-- BU SATIRI SİL
-    cartItemIds={cartItemIds}
-    user={user}
-    onOpenLogin={() => {
-      setAuthModalTab("login");
-      setIsAuthModalOpen(true);
-    }}
-    onOpenChart={openChart}
-  />
-)}
         {!loading && activeTab === "profile" && (
           <ProfilePage
             user={user}

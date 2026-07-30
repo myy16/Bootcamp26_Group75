@@ -293,9 +293,6 @@ def update_user_profile(user_id: str, profile_data: dict):
     Gracefully maps skin_type/hair_type strings to foreign key IDs.
     Uses Supabase as the source of truth, with in-memory fallback.
     """
-    if not is_valid_uuid(user_id):
-        raise ValueError(f"Invalid user_id for Supabase profile update: {user_id}")
-
     # Always update in-memory profile store first as fallback
     existing = IN_MEMORY_PROFILES.get(user_id, {})
     new_profile = {
@@ -309,6 +306,9 @@ def update_user_profile(user_id: str, profile_data: dict):
         "onboarding_completed": True if (profile_data.get("skin_type") or existing.get("skin_type")) and (profile_data.get("hair_type") or existing.get("hair_type")) else False,
     }
     IN_MEMORY_PROFILES[user_id] = new_profile
+
+    if not is_valid_uuid(user_id):
+        return new_profile
 
     if not supabase_client:
         return new_profile
@@ -816,13 +816,24 @@ def get_product_by_name(name: str) -> Optional[dict]:
     if not supabase_client or not name:
         return None
     try:
-        res = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").ilike("universal_name", f"%{name}%").limit(1).execute()
-        if not res.data:
+        clean_name = re.sub(r'[%\_\+\\\/]', ' ', name).strip()
+        if not clean_name:
             return None
-        return get_product_by_id(res.data[0]["id"])
+
+        res = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").ilike("universal_name", f"%{clean_name}%").limit(1).execute()
+        if res.data and len(res.data) > 0:
+            return get_product_by_id(res.data[0]["id"])
+
+        words = clean_name.split()
+        if len(words) >= 2:
+            short_name = " ".join(words[:3])
+            res2 = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").ilike("universal_name", f"%{short_name}%").limit(1).execute()
+            if res2.data and len(res2.data) > 0:
+                return get_product_by_id(res2.data[0]["id"])
     except Exception as e:
         print(f"Error fetching product by name {name}: {e}")
         return None
+    return None
 
 
 def get_product_alternatives(
