@@ -104,14 +104,14 @@ export function Sidebar({
     <aside className="w-[280px] min-w-[280px] bg-[#1B4332] flex flex-col h-screen sticky top-0 font-sans border-r border-white/5">
       
       {/* --- LOGO ALANI --- */}
-      <div className="pt-7 px-6 pb-6">
-        <div className="font-serif text-2xl text-white tracking-tight select-none">
-          beau<span className="italic text-[#FFB7B2]">trics</span>
-        </div>
-        <div className="mt-1 text-[11px] text-white/45 tracking-[0.8px]">
-          Akıllı Güzellik & Bakım Alışverişi
-        </div>
-      </div>
+      <div className="pt-7 px-6 pb-6 flex justify-center">
+  <img
+    src="/beautrics_logo.png"
+    alt="Beautrics"
+    className="w-55 h-auto object-contain select-none drop-shadow-[0_0_18px_rgba(255,183,178,0.25)]"
+    draggable={false}
+  />
+</div>
 
       {/* --- AYIRICI --- */}
       <div className="h-px bg-white/10 mb-2" />
