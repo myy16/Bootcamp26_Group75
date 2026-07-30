@@ -17,6 +17,7 @@ interface HomePageProps {
   userSkinTypeName?: string | null;
   onOpenLogin: () => void;
   onOpenChart: (product: Product) => void;
+  onAskAI?: (product: Product) => void;
 }
 
 type SortKey = 'price-desc' | 'price-asc' | 'name-asc' | 'name-desc';
@@ -38,6 +39,7 @@ export function HomePage({
   userSkinTypeName,
   onOpenLogin,
   onOpenChart,
+  onAskAI,
 }: HomePageProps) {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortKey>('price-asc');
@@ -276,6 +278,7 @@ export function HomePage({
                   user={user}
                   onOpenLogin={onOpenLogin}
                   onOpenChart={onOpenChart}
+                  onAskAI={onAskAI}
                 />
               ))}
             </div>

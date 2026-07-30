@@ -3,6 +3,7 @@ import {
   ShoppingBag,
   Check,
   ArrowRight,
+  Sparkles,
 } from "lucide-react";
 import {
   Product,
@@ -23,6 +24,7 @@ interface ProductCardProps {
   user?: User | null; // <-- YENİ: Kullanıcı oturum bilgisi
   onOpenLogin?: () => void; // <-- YENİ: Giriş yap modalını tetikleme fonksiyonu
   onOpenChart?: (product: Product) => void;
+  onAskAI?: (product: Product) => void;
 }
 
 export function ProductCard({
@@ -35,6 +37,7 @@ export function ProductCard({
   user,
   onOpenLogin,
   onOpenChart,
+  onAskAI,
 }: ProductCardProps) {
   const validStores = (product.stores || []).filter(
     (s) => s.price > 0,
@@ -183,6 +186,7 @@ export function ProductCard({
 })}
         </div>
 
+<<<<<<< HEAD
         {/* Add to cart button */}
        <button
         onClick={handleAddToCartClick}
@@ -203,6 +207,46 @@ export function ProductCard({
           </>
         )}
       </button>
+=======
+        {/* Action buttons (AI'a Sor & Sepete Ekle) */}
+        <div className="flex items-center gap-2 mt-1">
+          {onAskAI && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAskAI(product);
+              }}
+              className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#EBF5F0] text-[#2D6A4F] hover:bg-[#DDF0E6] text-[12.5px] font-bold transition-colors shrink-0 shadow-sm border border-[#52B788]/30 cursor-pointer"
+              title="Bu ürünü Beautrics AI Asistanı'na sor"
+            >
+              <Sparkles size={14} className="text-[#2D6A4F]" /> AI'a Sor
+            </button>
+          )}
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddToCart(product);
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-[13px] font-semibold transition-colors duration-200 cursor-pointer ${
+              isInCart
+                ? "bg-[#EBF5F0] text-[#2D6A4F] hover:bg-[#DDF0E6]"
+                : "bg-[#1B4332] text-white hover:bg-[#153427] shadow-md shadow-[#1B4332]/20"
+            }`}
+          >
+            {isInCart ? (
+              <>
+                <Check size={14} className="stroke-[3px]" />{" "}
+                Sepette
+              </>
+            ) : (
+              <>
+                <ShoppingBag size={14} /> Sepete Ekle
+              </>
+            )}
+          </button>
+        </div>
+>>>>>>> d5a5cd89936616b3ffc8aec3875f8bec1567ab54
       </div>
     </div>
   );

@@ -11,6 +11,10 @@ interface ChatPageProps {
   cartItemIds: Set<string>;
   onNavigateToCart: () => void;
   user?: SupabaseUser | null;
+  pendingQuery?: string | null;
+  onClearPendingQuery?: () => void;
+  currentSessionId?: string;
+  onAutoRenameSession?: (sessionId: string, firstMessage: string) => void;
 }
 
 interface Message {
@@ -234,13 +238,17 @@ function OnboardingCard({
   onSave,
   onSkip,
 }: {
-  onSave: (skinType: string, hairType: string, concerns: string[]) => void;
+  onSave: (skinType: string, hairTypes: string[], concerns: string[]) => void;
   onSkip: () => void;
 }) {
   const [skinType, setSkinType] = useState<string>('');
-  const [hairType, setHairType] = useState<string>('');
+  const [hairTypes, setHairTypes] = useState<string[]>([]);
   const [concerns, setConcerns] = useState<string[]>([]);
   const [step, setStep] = useState(0);
+
+  const toggleHairType = (val: string) => {
+    setHairTypes(prev => prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]);
+  };
 
   const toggleConcern = (val: string) => {
     setConcerns(prev => prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]);
@@ -273,11 +281,11 @@ function OnboardingCard({
     },
     {
       title: 'Saç Tipin',
-      subtitle: 'Sana özel öneriler için saç tipini seç',
+      subtitle: 'Sana özel öneriler için saç tipini seç (birden fazla seçebilirsin)',
       items: HAIR_TYPES,
-      selected: hairType,
-      onClick: (v: string) => setHairType(v),
-      isMulti: false
+      selected: hairTypes,
+      onClick: (v: string) => toggleHairType(v),
+      isMulti: true
     },
     {
       title: 'Cilt Sorunların',
@@ -290,6 +298,9 @@ function OnboardingCard({
   ];
 
   const currentStep = steps[step];
+  const isStepValid = currentStep.isMulti
+    ? (currentStep.selected as string[]).length > 0
+    : Boolean(currentStep.selected);
 
   return (
     <div
@@ -363,10 +374,10 @@ function OnboardingCard({
           {step < steps.length - 1 ? (
             <button
               onClick={() => setStep((s) => s + 1)}
-              disabled={!currentStep.isMulti && !currentStep.selected}
+              disabled={!isStepValid}
               style={{
                 padding: '9px 20px', borderRadius: 8, border: 'none',
-                background: (!currentStep.isMulti && !currentStep.selected) ? '#D5D5CF' : '#2D6A4F',
+                background: !isStepValid ? '#D5D5CF' : '#2D6A4F',
                 color: '#FFFFFF', cursor: 'pointer', fontSize: 13, fontWeight: 600,
                 display: 'flex', alignItems: 'center', gap: 6,
               }}
@@ -375,11 +386,11 @@ function OnboardingCard({
             </button>
           ) : (
             <button
-              onClick={() => onSave(skinType, hairType, concerns)}
-              disabled={!skinType || !hairType}
+              onClick={() => onSave(skinType, hairTypes, concerns)}
+              disabled={!skinType || hairTypes.length === 0}
               style={{
                 padding: '9px 20px', borderRadius: 8, border: 'none',
-                background: (!skinType || !hairType) ? '#D5D5CF' : '#2D6A4F',
+                background: (!skinType || hairTypes.length === 0) ? '#D5D5CF' : '#2D6A4F',
                 color: '#FFFFFF', cursor: 'pointer', fontSize: 13, fontWeight: 600,
               }}
             >
@@ -556,7 +567,16 @@ function ProductListCard({ products, cartItemIds, onAddToCart }: { products: Pro
   );
 }
 
-export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: ChatPageProps) {
+export function ChatPage({
+  onAddToCart,
+  cartItemIds,
+  onNavigateToCart,
+  user,
+  pendingQuery,
+  onClearPendingQuery,
+  currentSessionId,
+  onAutoRenameSession,
+}: ChatPageProps) {
   // Generate or retrieve a persistent test user UUID if not logged in
   const getUserId = () => {
     if (user?.id) return user.id;
@@ -569,26 +589,30 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
   };
 
   const userId = getUserId();
-  const sessionId = "session-v2";
-  const storageKey = `beautrics_chat_messages_${userId}`;
+  const sessionId = currentSessionId || "default_session";
+  const storageKey = `beautrics_chat_messages_${userId}_${sessionId}`;
 
-  const [messages, setMessages] = useState<Message[]>(() => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputVal, setInputVal] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Sync messages to/from localStorage per session
+  useEffect(() => {
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          setMessages(parsed);
+          return;
         }
       }
     } catch (e) {
       console.error("Error reading saved chat messages:", e);
     }
-    return [];
-  });
-  const [inputVal, setInputVal] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+    setMessages([]);
+  }, [storageKey]);
 
   // Sync messages to localStorage
   useEffect(() => {
@@ -601,10 +625,10 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
     }
   }, [messages, storageKey]);
 
-  // Initial Load: Check profile and greeting (preserves existing conversation when switching tabs)
+  // Initial Load: Check profile and greeting if session has no messages
   useEffect(() => {
     async function initChat() {
-      if (messages.length > 0) return; // Keep existing messages when switching tabs
+      if (messages.length > 0) return; // Keep existing messages if already present
       
       setIsLoading(true);
       try {
@@ -690,6 +714,12 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
 
     // 1. Add user message
     const userMsgId = `msg-${Date.now()}`;
+    // Auto-rename session if it's the first user message in this session
+    const hasUserMessages = messages.some(m => m.role === 'user');
+    if (!hasUserMessages) {
+      onAutoRenameSession?.(sessionId, text);
+    }
+
     const newMessages = [...messages, { id: userMsgId, role: 'user', content: text } as Message];
     setMessages(newMessages);
     setInputVal('');
@@ -698,21 +728,41 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
     try {
       // 2. Send request to backend
       const data = await sendChatMessage(userId, text, sessionId);
+      const fullResponse = data.response || 'Önerileriniz hazırlandı.';
 
       // 3. Map retrieved products
       const productsMapped = (data.retrieved_products || []).map(mapBackendProductToFrontend);
 
-      // 4. Add assistant message
+      // 4. Real-time progressive word streaming for live response generation
+      const assistantMsgId = `msg-${Date.now() + 1}`;
+      setIsLoading(false);
+
       setMessages(prev => [
         ...prev,
         {
-          id: `msg-${Date.now() + 1}`,
+          id: assistantMsgId,
           role: 'assistant',
-          content: data.response,
+          content: '',
           products: productsMapped,
           isOnboarding: false
         }
       ]);
+
+      const words = fullResponse.split(" ");
+      let index = 0;
+      let streamedContent = "";
+
+      const streamTimer = setInterval(() => {
+        if (index < words.length) {
+          streamedContent += (index === 0 ? "" : " ") + words[index];
+          index++;
+          setMessages(prev =>
+            prev.map(m => (m.id === assistantMsgId ? { ...m, content: streamedContent } : m))
+          );
+        } else {
+          clearInterval(streamTimer);
+        }
+      }, 25);
     } catch (err) {
       console.error("Error sending message:", err);
       setMessages(prev => [
@@ -728,9 +778,18 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
     }
   };
 
-  const handleSaveOnboarding = async (skinType: string, hairType: string, selectedConcerns: string[]) => {
+  // Auto-send pending query if triggered from ProductCard or ChartModal "AI'a Sor" button
+  useEffect(() => {
+    if (pendingQuery && pendingQuery.trim() && !isLoading) {
+      handleSendMessage(pendingQuery);
+      onClearPendingQuery?.();
+    }
+  }, [pendingQuery, isLoading]);
+
+  const handleSaveOnboarding = async (skinType: string, hairTypes: string[], selectedConcerns: string[]) => {
     localStorage.setItem("beautrics_onboarding_completed", "true");
     const activeUserId = getUserId();
+    const hairTypeStr = hairTypes.join(', ');
     
     try {
       if (user?.id) {
@@ -738,7 +797,7 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
           fullName: user.user_metadata?.full_name || '',
           currentEmail: user.email || undefined,
           skinTypeName: skinType,
-          hairTypeName: hairType,
+          hairTypeName: hairTypes[0] || '',
           skinConcernNames: selectedConcerns,
           onboardingCompleted: true,
         });
@@ -750,7 +809,7 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
         body: JSON.stringify({
           full_name: user?.user_metadata?.full_name || 'Kullanıcı',
           skin_type: skinType,
-          hair_type: hairType,
+          hair_type: hairTypeStr,
           skin_concerns: selectedConcerns,
           min_budget: null,
           max_budget: null
@@ -761,8 +820,9 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
     }
 
     // Construct message payload to submit onboarding selections
+    const hairText = hairTypes.length > 0 ? hairTypes.join(', ') : 'Belirtilmedi';
     const concernsText = selectedConcerns.length > 0 ? `, Cilt Sorunlarım: ${selectedConcerns.join(', ')}` : '';
-    const onboardingText = `Cildim ${skinType}, Saçım ${hairType}${concernsText}`;
+    const onboardingText = `Cildim ${skinType}, Saçım ${hairText}${concernsText}`;
     
     // Hide onboarding prompt from the last welcome message and proceed to send chat message
     setMessages(prev => prev.map(m => m.isOnboarding ? { ...m, isOnboarding: false } : m));
@@ -952,7 +1012,7 @@ export function ChatPage({ onAddToCart, cartItemIds, onNavigateToCart, user }: C
           {['Nemlendirici önerisi', 'Akne için rutin', 'En ucuz maskara hangisi?', 'Yağlı cilt için güneş kremi'].map((q) => (
             <button
               key={q}
-              onClick={() => setInputVal(q)}
+              onClick={() => handleSendMessage(q)}
               style={{
                 padding: '5px 12px', borderRadius: 20, border: '1px solid #D5D5CF',
                 background: '#FFFFFF', color: '#666', cursor: 'pointer', fontSize: 12,

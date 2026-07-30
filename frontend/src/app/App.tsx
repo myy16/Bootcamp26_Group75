@@ -1,16 +1,17 @@
 import { useState, useEffect } from "react";
 import { Toaster, toast } from "sonner";
-import { Sidebar, ActiveTab } from "./components/Sidebar";
+import { Sidebar, ActiveTab, ChatSession } from "./components/Sidebar";
 import { HomePage } from "./components/HomePage";
 import { ChatPage } from "./components/ChatPage";
 import { CartOptimizer } from "./components/CartOptimizer";
 import { FavoritesPage } from "./components/FavoritesPage";
 import { ProfilePage } from "./components/ProfilePage";
-import { Product, StoreName } from "./data";
+import { Product, StoreName, getCheapestStore } from "./data";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { AuthModal } from "./components/AuthModal";
 import { ChartModal } from "./components/ChartModal";
+import { AdminPanel } from "./components/AdminPanel";
 import "../styles/fonts.css";
 
 const BASE_PRODUCT_SELECT = `
@@ -55,6 +56,33 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("home");
   const [cartItems, setCartItems] = useState<Product[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
+
+  // Listen for /admin or #admin in URL and unlock Admin state
+  useEffect(() => {
+    const checkAdminRoute = () => {
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      if (path === "/admin" || path.startsWith("/admin") || hash === "#admin") {
+        setActiveTab("admin");
+        setIsAdminUnlocked(true);
+      }
+    };
+    checkAdminRoute();
+    window.addEventListener("popstate", checkAdminRoute);
+    window.addEventListener("hashchange", checkAdminRoute);
+    return () => {
+      window.removeEventListener("popstate", checkAdminRoute);
+      window.removeEventListener("hashchange", checkAdminRoute);
+    };
+  }, []);
+
+  // Track when activeTab becomes admin to keep admin unlocked
+  useEffect(() => {
+    if (activeTab === "admin") {
+      setIsAdminUnlocked(true);
+    }
+  }, [activeTab]);
 
   // --- SUPABASE VERİ STATE'LERİ ---
   const [products, setProducts] = useState<Product[]>([]);
@@ -69,6 +97,102 @@ export default function App() {
   // --- FİYAT ANALİZİ (CHART) MODAL STATE'İ ---
   const [chartProduct, setChartProduct] = useState<Product | null>(null);
   const openChart = (product: Product) => setChartProduct(product);
+
+  // --- AI'A SOR SOHBET YÖNLENDİRME STATE'İ VE AKSİYONU ---
+  const [pendingChatQuery, setPendingChatQuery] = useState<string | null>(null);
+
+  const handleAskAI = (product: Product) => {
+    const brandName = product.brand ? product.brand.trim() : "";
+    const titleName = product.title ? product.title.trim() : "";
+    const fullProductName = (brandName && titleName.toLowerCase().startsWith(brandName.toLowerCase()))
+      ? titleName
+      : `${brandName} ${titleName}`.trim();
+
+    const cheapestStore = getCheapestStore(product.stores);
+    const storeInfo = cheapestStore && cheapestStore.price > 0 
+      ? ` (${cheapestStore.name} mağazasında en uygun fiyat: ${cheapestStore.price} ₺)` 
+      : "";
+
+    const prompt = `"${fullProductName}"${storeInfo} ürünü hakkında detaylı bilgi verir misin? Bu ürün benim cilt ve saç profilime uygun mu, ana faydaları nelerdir ve nasıl kullanmalıyım?`;
+    
+    setPendingChatQuery(prompt);
+    setChartProduct(null);
+    setActiveTab("chat");
+  };
+
+  // --- CHAT SESSIONS (SOHBET GEÇMİŞİ SEANSLARI) STATE & ACTIONS ---
+  const [sessions, setSessions] = useState<ChatSession[]>(() => {
+    try {
+      const saved = localStorage.getItem(`beautrics_chat_sessions_${user?.id || 'guest'}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error("Error reading saved chat sessions:", e);
+    }
+    return [{ id: "session-1", title: "Cilt Bakım Asistanı", createdAt: Date.now() }];
+  });
+
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
+    return sessions[0]?.id || "session-1";
+  });
+
+  // Sync sessions to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(`beautrics_chat_sessions_${user?.id || 'guest'}`, JSON.stringify(sessions));
+    } catch (e) {
+      console.error("Error saving chat sessions:", e);
+    }
+  }, [sessions, user]);
+
+  const handleCreateNewSession = () => {
+    const newId = `session-${Date.now()}`;
+    const newSession: ChatSession = {
+      id: newId,
+      title: "Yeni Sohbet",
+      createdAt: Date.now(),
+    };
+    setSessions((prev) => [newSession, ...prev]);
+    setCurrentSessionId(newId);
+  };
+
+  const handleRenameSession = (sessionId: string, newTitle: string) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === sessionId ? { ...s, title: newTitle } : s))
+    );
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    const remaining = sessions.filter((s) => s.id !== sessionId);
+    if (remaining.length === 0) {
+      const freshId = `session-${Date.now()}`;
+      const freshSession: ChatSession = { id: freshId, title: "Cilt Bakım Asistanı", createdAt: Date.now() };
+      setSessions([freshSession]);
+      setCurrentSessionId(freshId);
+    } else {
+      setSessions(remaining);
+      if (currentSessionId === sessionId) {
+        setCurrentSessionId(remaining[0].id);
+      }
+    }
+  };
+
+  const handleAutoRenameSession = (sessionId: string, firstMessage: string) => {
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id === sessionId && s.title === "Yeni Sohbet") {
+          let cleanTitle = firstMessage.replace(/"/g, '').trim();
+          if (cleanTitle.length > 25) {
+            cleanTitle = cleanTitle.substring(0, 22) + "...";
+          }
+          return { ...s, title: cleanTitle || "Sohbet" };
+        }
+        return s;
+      })
+    );
+  };
 
   // --- SUPABASE OTURUM DURUMUNU DİNLEME ---
   useEffect(() => {
@@ -119,15 +243,27 @@ export default function App() {
     };
   }, [user]);
 
-  // --- YENİ ENTEGRASYON: KULLANICI GİRİŞ YAPTIĞINDA FAVORİLERİ VERİTABANINDAN ÇEKME ---
+  // --- KULLANICI GİRİŞ YAPTIĞINDA MİSAFİR FAVORİLERİNİ HESABA AKTARMA VE ÇEKME ---
   useEffect(() => {
     if (!user) {
-      setFavoriteIds(new Set()); // Kullanıcı çıkış yaptıysa favorileri temizle
       return;
     }
 
-    async function fetchUserFavorites() {
+    async function syncAndFetchUserFavorites() {
       try {
+        // 1. Kullanıcı giriş yapmadan önce favorilediği ürünler varsa onları Supabase'e aktar
+        if (favoriteIds.size > 0) {
+          const guestFavArray = Array.from(favoriteIds).map(id => ({
+            user_id: user.id,
+            product_id: parseInt(id, 10)
+          })).filter(item => !isNaN(item.product_id));
+
+          if (guestFavArray.length > 0) {
+            await supabase.from("user_favorites").upsert(guestFavArray, { onConflict: "user_id,product_id" });
+          }
+        }
+
+        // 2. Kullanıcının Supabase'deki tüm favorilerini çekip birleştir
         const { data, error } = await supabase
           .from("user_favorites")
           .select("product_id")
@@ -136,16 +272,15 @@ export default function App() {
         if (error) throw error;
 
         if (data) {
-          // Veritabanındaki int4 ID'leri stringe çevirip Set state'ine atıyoruz
           const favIdsString = data.map((item: any) => item.product_id.toString());
-          setFavoriteIds(new Set(favIdsString));
+          setFavoriteIds((prev) => new Set([...Array.from(prev), ...favIdsString]));
         }
       } catch (err) {
         console.error("Favoriler yüklenirken hata oluştu:", err);
       }
     }
 
-    fetchUserFavorites();
+    syncAndFetchUserFavorites();
   }, [user]);
 
   // --- YENİ ENTEGRASYON: KULLANICI GİRİŞ YAPTIĞINDA SEPETİ VERİTABANINDAN ÇEKME ---
@@ -432,14 +567,54 @@ export default function App() {
   // };
 
   const handleSignOut = async () => {
-    if (!supabase) return;
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast.error("Çıkış yapılırken bir hata oluştu.");
-    } else {
-      toast.success("Başarıyla çıkış yapıldı.");
+    // 1. Instantly revoke admin authorization and reset active tab
+    setIsAdminUnlocked(false);
+    setActiveTab("home");
+
+    // 2. Clear URL hash and admin path
+    if (window.location.hash === "#admin" || window.location.pathname.includes("admin")) {
+      window.history.pushState("", document.title, window.location.pathname.replace(/\/admin.*/, "/"));
+      window.location.hash = "";
     }
+
+    // 3. Clear Supabase Auth Session
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+
+    toast.success("Başarıyla çıkış yapıldı.");
+
+    // 4. Force hard reload to wipe all memory states cleanly
+    setTimeout(() => {
+      window.location.href = window.location.origin;
+    }, 200);
   };
+
+  // Security Authorization Guard for Admin Panel Access
+  const isAuthorizedAdmin = isAdminUnlocked || user?.email === "admin@beautrics.com" || Boolean(user?.user_metadata?.role === "admin");
+
+  if (activeTab === "admin") {
+    if (!isAuthorizedAdmin) {
+      toast.error("Yönetici yetkisi gerekli. Lütfen yetkili hesap ile giriş yapın.");
+      setActiveTab("home");
+      return null;
+    }
+
+    return (
+      <div className="min-h-screen bg-[#F7F9F8]">
+        <Toaster position="bottom-right" richColors />
+        <AdminPanel
+          onBackToApp={() => {
+            setActiveTab("home");
+            if (window.location.hash === "#admin") {
+              window.location.hash = "";
+            }
+          }}
+          onSignOut={handleSignOut}
+        />
+      </div>
+    );
+  }
 
   return (
     // TAILWIND GÜNCELLEMESİ: Dış sarmalayıcı flex kutusu düzenlendi
@@ -451,6 +626,7 @@ export default function App() {
         onTabChange={setActiveTab}
         cartCount={cartItems.length}
         user={user}
+        isAdminUnlocked={isAdminUnlocked || Boolean(user?.email?.includes("admin"))}
         onOpenLogin={() => {
           setAuthModalTab("login");
           setIsAuthModalOpen(true);
@@ -460,6 +636,12 @@ export default function App() {
           setIsAuthModalOpen(true);
         }}
         onSignOut={handleSignOut}
+        sessions={sessions}
+        currentSessionId={currentSessionId}
+        onSelectSession={setCurrentSessionId}
+        onCreateNewSession={handleCreateNewSession}
+        onRenameSession={handleRenameSession}
+        onDeleteSession={handleDeleteSession}
       />
 
       {/* TAILWIND GÜNCELLEMESİ: Main içerik alanı sınıfları eklendi */}
@@ -486,6 +668,7 @@ export default function App() {
               setIsAuthModalOpen(true);
             }}
             onOpenChart={openChart}
+            onAskAI={handleAskAI}
           />
         )}
         {!loading && (
@@ -496,16 +679,39 @@ export default function App() {
               cartItemIds={cartItemIds}
               onNavigateToCart={() => setActiveTab("cart")}
               user={user}
+              pendingQuery={pendingChatQuery}
+              onClearPendingQuery={() => setPendingChatQuery(null)}
+              currentSessionId={currentSessionId}
+              onAutoRenameSession={handleAutoRenameSession}
             />
           </div>
         )}
         {/* Sayfaların Gösterilmesi bölümünde ilgili satırları şu şekilde güncelleyin: */}
 
         {!loading && activeTab === "cart" && (
+<<<<<<< HEAD
           <CartOptimizer 
             items={cartItems} 
             onRemoveItem={handleRemoveFromCart}
             onUpdateQuantity={handleUpdateQuantity} // <-- BU SATIR EKLENDİ
+=======
+          <CartOptimizer items={cartItems} onRemoveItem={handleRemoveFromCart} />
+        )}
+        {!loading && activeTab === "favorites" && (
+          <FavoritesPage
+            products={products}
+            favoriteIds={favoriteIds}
+            onToggleFavorite={handleToggleFavorite}
+            onAddToCart={handleAddToCart}
+            cartItemIds={cartItemIds}
+            user={user}
+            onOpenLogin={() => {
+              setAuthModalTab("login");
+              setIsAuthModalOpen(true);
+            }}
+            onOpenChart={openChart}
+            onAskAI={handleAskAI}
+>>>>>>> d5a5cd89936616b3ffc8aec3875f8bec1567ab54
           />
         )}
 
@@ -552,6 +758,7 @@ export default function App() {
         productId={chartProduct?.id ?? null}
         productTitle={chartProduct?.title}
         onClose={() => setChartProduct(null)}
+        onAskAI={() => chartProduct && handleAskAI(chartProduct)}
       />
     </div>
   );
