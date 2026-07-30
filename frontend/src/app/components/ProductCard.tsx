@@ -39,27 +39,10 @@ export function ProductCard({
   onOpenChart,
   onAskAI,
 }: ProductCardProps) {
-  // Store listesini normalize et ve tekrar eden mağazaları teke düşür (Deduplication)
-  const storeMap: Record<string, { name: StoreName; price: number }> = {};
-
-  (product.stores || []).forEach((s) => {
-    if (s.price > 0) {
-      const lower = (s.name || "").toLowerCase().trim();
-      let normalizedName: StoreName = "Gratis";
-      if (lower.includes("rossmann")) normalizedName = "Rossmann";
-      else if (lower.includes("watsons")) normalizedName = "Watsons";
-      else if (lower.includes("gratis")) normalizedName = "Gratis";
-      else if (lower.includes("mion") || lower.includes("migros")) normalizedName = "Mion";
-      else if (s.name) normalizedName = s.name as StoreName;
-
-      if (!storeMap[normalizedName] || s.price < storeMap[normalizedName].price) {
-        storeMap[normalizedName] = { name: normalizedName, price: s.price };
-      }
-    }
-  });
-
-  const validStores = Object.values(storeMap);
-
+  const validStores = (product.stores || []).filter(
+    (s) => s.price > 0,)
+    .filter((store, index, self) => index === self.findIndex((s) => s.name.toLowerCase() === store.name.toLowerCase())
+  );
   if (validStores.length === 0) {
     return null;
   }
@@ -93,7 +76,6 @@ export function ProductCard({
 
   return (
     <div className="group bg-white rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden flex flex-col transition-all duration-300 hover:scale-[1.02] cursor-pointer font-sans relative">
-      {/* --- IMAGE SECTION --- */}
       <div className="relative aspect-square overflow-hidden bg-[#F8F8F5]">
         <img
           src={product.image}

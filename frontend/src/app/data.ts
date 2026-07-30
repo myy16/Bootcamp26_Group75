@@ -14,7 +14,7 @@ export interface Product {
   attributes?: string[];
   skinTypeNames?: string[];
   tagNames?: string[];
-  stores: { name: StoreName; price: number }[];
+  stores: { name: StoreName; price: number; url?: string }[];
   featured?: boolean;
   featuredLabel?: string;
   history?: { date: string; price: number }[];
