@@ -818,15 +818,11 @@ def search_products_by_profile(
         wants_out_of_stock = "stok dışı" in msg_lower or "stokta olmayan" in msg_lower or "stokta yok" in msg_lower
 
         if wants_out_of_stock:
-            # Filter for out of stock products
-            out_of_stock_prods = [p for p in result if p["is_out_of_stock"]]
-            if out_of_stock_prods:
-                result = out_of_stock_prods
+            # Kullanıcı özellikle stok dışını istiyor
+            result = [p for p in result if p["is_out_of_stock"]]
         else:
-            # Default: exclude out of stock products unless explicitly requested
-            in_stock_prods = [p for p in result if not p["is_out_of_stock"]]
-            if in_stock_prods:
-                result = in_stock_prods
+            # Varsayılan: stok dışı ürünleri KESİN OLARAK çıkar, liste boş kalsa bile
+            result = [p for p in result if not p["is_out_of_stock"]]
 
         # Dynamic rotation / shuffling if user asked for "farklı", "başka", "değişik", "diğer"
         wants_different = any(k in msg_lower for k in ["farklı", "başka", "değişik", "diğer", "yeni"])

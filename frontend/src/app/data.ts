@@ -32,7 +32,16 @@ export const STORE_COLORS: Record<
 };
 
 export function getCheapestStore(stores: StorePrice[]): StorePrice {
-  return stores.reduce((min, s) => (s.price < min.price ? s : min));
+  // Sadece gerçekten satışta olan (price > 0) mağazaları dikkate al.
+  // 0 fiyat, o mağazada ürünün satışta olmadığı anlamına gelir, "en ucuz" değil.
+  const validStores = stores.filter((s) => s.price > 0);
+
+  if (validStores.length === 0) {
+    // Hiçbir mağazada geçerli fiyat yoksa, ürün gerçekten stok dışıdır.
+    return stores[0] ?? { name: "Gratis", price: 0 };
+  }
+
+  return validStores.reduce((min, s) => (s.price < min.price ? s : min));
 }
 
 export function getStoreTotals(items: Product[]): Record<StoreName, number> {

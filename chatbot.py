@@ -621,19 +621,28 @@ def vector_rag_node(state: AgentState):
                 "cilt bakım", match_count=3, exclude_ids=exclude_ids
             )
 
-        # 4.5 Stok dışı ürünleri filtrele (kullanıcı özellikle istemedikçe)
+        # 4.5 Stok dışı ürünleri filtrele (kullanıcı özellikle istemedikçe) — kesin filtre
+        # Bu blok artık adım 1/2/3/4'ün TAMAMI için ortak, tek girinti seviyesinde çalışır
         if not wants_out_of_stock:
-            in_stock_products = []
-            for p in matched_products:
-                stores = p.get("store_mappings", [])
-                valid_prices = [
-                    float(s["current_price"]) for s in stores
-                    if s.get("current_price") and float(s["current_price"]) > 0
+            matched_products = [
+                p for p in matched_products
+                if any(
+                    s.get("current_price") and float(s["current_price"]) > 0
+                    for s in p.get("store_mappings", [])
+                )
+            ]
+
+            # Filtre sonrası liste boş kaldıysa, profil/kategori kısıtı olmadan
+            # genel bir stokta-ürün araması yaparak yerine koy
+            if not matched_products:
+                fallback = search_products_by_keyword("cilt bakım", match_count=3, exclude_ids=exclude_ids)
+                matched_products = [
+                    p for p in fallback
+                    if any(
+                        s.get("current_price") and float(s["current_price"]) > 0
+                        for s in p.get("store_mappings", [])
+                    )
                 ]
-                if valid_prices:
-                    in_stock_products.append(p)
-            if in_stock_products:
-                matched_products = in_stock_products
 
         # 5. Bütçe filtresi uygula
         if effective_budget.get("max_budget"):
