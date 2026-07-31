@@ -2,6 +2,7 @@ import os
 import json
 import math
 import uuid
+import re
 from typing import Optional, Dict
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -101,7 +102,10 @@ def get_categories_map() -> dict:
                 CATEGORIES_MAP[cat_id] = cat_name
 
                 # Build keyword mapping
-                words = cat_name.lower().replace("ı", "i").replace("ö", "o").replace("ü", "u").replace("ş", "s").replace("ç", "c").replace("ğ", "g")
+                words = cat_name.lower().replace("ı", "i").replace("ö", "o").replace("ü", "u").replace("ş",
+                                                                                                       "s").replace("ç",
+                                                                                                                    "c").replace(
+                    "ğ", "g")
                 KEYWORD_CATEGORY_MAP[cat_name.lower()] = cat_id
 
         # Common user-facing Turkish synonyms -> category_id
@@ -122,7 +126,9 @@ def get_categories_map() -> dict:
             "tonik": 24, "toner": 24, "temizleyici": 24, "temizleme": 24, "yüz temizleme": 24,
             "maske": 29, "yüz maskesi": 29,
             "peeling": 31,
-            "dudak": [32, 23, 7, 20], "dudak bakım": [32, 23, 7], "dudak kremi": [32, 23], "dudak nemlendiricisi": [32, 23], "dudak nemlendirici": [32, 23], "dudak balamı": [32, 23], "balm": [32, 23],
+            "dudak": [32, 23, 7, 20], "dudak bakım": [32, 23, 7], "dudak kremi": [32, 23],
+            "dudak nemlendiricisi": [32, 23], "dudak nemlendirici": [32, 23], "dudak balamı": [32, 23],
+            "balm": [32, 23],
             "göz bakım": 33, "göz kremi": 33, "göz çevresi": 33, "göz nemlendirici": 33, "göz nemlendiricisi": 33,
             "şampuan": 34, "sampuan": 34,
             "saç kremi": 35, "saç bakım": 36, "saç maskesi": 36, "saç yağı": 36,
@@ -182,10 +188,11 @@ def find_matching_category_ids(user_message: str) -> list:
 def load_onboarding_lookups():
     """Fetches and caches lookup tables for skin types, hair types, and skin concerns."""
     global SKIN_TYPES_LOOKUP, HAIR_TYPES_LOOKUP, SKIN_CONCERNS_LOOKUP
-    
+
     # Initialize with default local fallbacks in case DB is empty or RLS-blocked
     default_skin = {'normal': 1, 'kuru': 2, 'yağlı': 3, 'karma': 4, 'hassas': 5}
-    default_hair = {'normal': 1, 'kuru': 2, 'yağlı': 3, 'boyalı': 4, 'ince telli': 5, 'kalın telli': 6, 'kıvırcık': 7, 'kepekli': 8}
+    default_hair = {'normal': 1, 'kuru': 2, 'yağlı': 3, 'boyalı': 4, 'ince telli': 5, 'kalın telli': 6, 'kıvırcık': 7,
+                    'kepekli': 8}
     default_concerns = {'akne': 1, 'leke': 2, 'kuruluk': 3, 'siyah nokta': 4, 'kızarıklık': 5, 'yaşlanma karşıtı': 6}
 
     if not SKIN_TYPES_LOOKUP:
@@ -203,7 +210,7 @@ def load_onboarding_lookups():
         res = supabase_client.table("skin_types").select("id, name").execute()
         if res.data and len(res.data) > 0:
             SKIN_TYPES_LOOKUP = {row["name"].lower(): row["id"] for row in res.data}
-            
+
         # Fetch hair types
         res = supabase_client.table("hair_types").select("id, name").execute()
         if res.data and len(res.data) > 0:
@@ -222,7 +229,9 @@ IN_MEMORY_PROFILES: Dict[str, dict] = {}
 
 # Global reverse lookup maps
 SKIN_TYPES_BY_ID = {1: "normal", 2: "kuru", 3: "yağlı", 4: "karma", 5: "hassas"}
-HAIR_TYPES_BY_ID = {1: "normal", 2: "kuru", 3: "yağlı", 4: "boyalı", 5: "ince telli", 6: "kalın telli", 7: "kıvırcık", 8: "kepekli"}
+HAIR_TYPES_BY_ID = {1: "normal", 2: "kuru", 3: "yağlı", 4: "boyalı", 5: "ince telli", 6: "kalın telli", 7: "kıvırcık",
+                    8: "kepekli"}
+
 
 def get_user_profile(user_id: str):
     """
@@ -236,23 +245,25 @@ def get_user_profile(user_id: str):
 
     if not supabase_client:
         return memory_prof if memory_prof else None
-        
+
     try:
         # Query user profile with join on skin_types and hair_types
-        res = supabase_client.table("user_profiles").select("*, skin_types(name), hair_types(name)").eq("user_id", user_id).execute()
-        
+        res = supabase_client.table("user_profiles").select("*, skin_types(name), hair_types(name)").eq("user_id",
+                                                                                                        user_id).execute()
+
         if res.data and len(res.data) > 0:
             profile_row = res.data[0]
-            
+
             # Fetch skin concerns many-to-many
-            concerns_res = supabase_client.table("user_skin_concerns").select("skin_concerns(name)").eq("user_id", user_id).execute()
+            concerns_res = supabase_client.table("user_skin_concerns").select("skin_concerns(name)").eq("user_id",
+                                                                                                        user_id).execute()
             concerns = []
             if concerns_res.data:
                 for c_row in concerns_res.data:
                     c_name = c_row.get("skin_concerns", {}).get("name")
                     if c_name:
                         concerns.append(c_name.lower())
-            
+
             # Map DB fields to application schema
             skin_type_name = profile_row.get("skin_types", {}).get("name") if profile_row.get("skin_types") else None
             hair_type_name = profile_row.get("hair_types", {}).get("name") if profile_row.get("hair_types") else None
@@ -276,7 +287,8 @@ def get_user_profile(user_id: str):
                 "skin_concerns": final_concerns,
                 "min_budget": profile_row.get("min_budget") or memory_prof.get("min_budget"),
                 "max_budget": profile_row.get("max_budget") or memory_prof.get("max_budget"),
-                "onboarding_completed": True if final_skin_type and final_hair_type else profile_row.get("onboarding_completed", False),
+                "onboarding_completed": True if final_skin_type and final_hair_type else profile_row.get(
+                    "onboarding_completed", False),
             }
             IN_MEMORY_PROFILES[user_id] = profile
             return profile
@@ -303,7 +315,8 @@ def update_user_profile(user_id: str, profile_data: dict):
         "skin_concerns": profile_data.get("skin_concerns", existing.get("skin_concerns", [])),
         "min_budget": profile_data.get("min_budget", existing.get("min_budget")),
         "max_budget": profile_data.get("max_budget", existing.get("max_budget")),
-        "onboarding_completed": True if (profile_data.get("skin_type") or existing.get("skin_type")) and (profile_data.get("hair_type") or existing.get("hair_type")) else False,
+        "onboarding_completed": True if (profile_data.get("skin_type") or existing.get("skin_type")) and (
+                    profile_data.get("hair_type") or existing.get("hair_type")) else False,
     }
     IN_MEMORY_PROFILES[user_id] = new_profile
 
@@ -336,7 +349,7 @@ def update_user_profile(user_id: str, profile_data: dict):
 
         # Check if profile already exists in DB
         check_res = supabase_client.table("user_profiles").select("user_id").eq("user_id", user_id).execute()
-        
+
         if check_res.data and len(check_res.data) > 0:
             supabase_client.table("user_profiles").update(profile_payload).eq("user_id", user_id).execute()
         else:
@@ -347,7 +360,7 @@ def update_user_profile(user_id: str, profile_data: dict):
         if skin_concerns:
             # Delete existing concerns for this user
             supabase_client.table("user_skin_concerns").delete().eq("user_id", user_id).execute()
-            
+
             # Map names to IDs and insert
             concerns_payload = []
             for c_name in skin_concerns:
@@ -362,7 +375,7 @@ def update_user_profile(user_id: str, profile_data: dict):
 
         print(f"Successfully saved profile for user {user_id} to DB")
         return get_user_profile(user_id)
-        
+
     except Exception as e:
         print(f"Error updating user profile in DB (using in-memory profile): {e}")
         return new_profile
@@ -437,10 +450,12 @@ def search_products_by_keyword(user_message: str, match_count: int = 3, exclude_
     except Exception as e:
         print(f"Keyword-based product search failed: {e}")
         return []
+
+
 def search_products_for_profile(
-    user_message: str,
-    profile: dict,
-    match_count: int = 3
+        user_message: str,
+        profile: dict,
+        match_count: int = 3
 ):
     """
     Kullanıcının mesajı ve profil bilgilerine göre ürünleri puanlayarak getirir.
@@ -580,7 +595,7 @@ def search_products_for_profile(
                 float(store["current_price"])
                 for store in stores
                 if store.get("current_price") is not None
-                and float(store["current_price"]) > 0
+                   and float(store["current_price"]) > 0
             ]
 
             lowest_price = min(valid_prices) if valid_prices else None
@@ -588,14 +603,14 @@ def search_products_for_profile(
             # Bütçe kontrolü
             if lowest_price is not None:
                 if (
-                    min_budget is not None
-                    and lowest_price < float(min_budget)
+                        min_budget is not None
+                        and lowest_price < float(min_budget)
                 ):
                     continue
 
                 if (
-                    max_budget is not None
-                    and lowest_price > float(max_budget)
+                        max_budget is not None
+                        and lowest_price > float(max_budget)
                 ):
                     continue
 
@@ -627,15 +642,20 @@ def search_products_for_profile(
         print(f"Profile-based product search failed: {e}")
         return []
 
-def match_products(query_embedding: list, match_threshold: float = 0.15, match_count: int = 3):
+
+def match_products(query_embedding: list, match_threshold: float = 0.15, match_count: int = 3,
+                   allow_out_of_stock: bool = False):
     if not supabase_client:
         return []
 
     try:
+        # Stok filtresi sonrası yeterli ürün kalması için daha fazla aday çekiyoruz
+        fetch_count = match_count if allow_out_of_stock else max(match_count * 3, 9)
+
         response = supabase_client.rpc("match_products", {
             "query_embedding": query_embedding,
             "match_threshold": match_threshold,
-            "match_count": match_count
+            "match_count": fetch_count
         }).execute()
 
         if response.data:
@@ -650,9 +670,23 @@ def match_products(query_embedding: list, match_threshold: float = 0.15, match_c
                     store["market_name"] = markets.get(store.get("m_id"), f"Mağaza #{store.get('m_id')}")
                 stores.sort(key=lambda s: s.get("current_price") or 99999)
 
+                valid_prices = [
+                    float(s["current_price"]) for s in stores
+                    if s.get("current_price") is not None and float(s["current_price"]) > 0
+                ]
+                lowest_price = min(valid_prices) if valid_prices else None
+
                 product["store_mappings"] = stores
+                product["lowest_price"] = lowest_price
+                product["is_out_of_stock"] = lowest_price is None
                 products_with_stores.append(product)
-            return products_with_stores
+
+            if not allow_out_of_stock:
+                in_stock = [p for p in products_with_stores if not p["is_out_of_stock"]]
+                if in_stock:
+                    products_with_stores = in_stock
+
+            return products_with_stores[:match_count]
     except Exception as e:
         print(f"RPC match_products failed: {e}. Using keyword search fallback...")
 
@@ -660,12 +694,12 @@ def match_products(query_embedding: list, match_threshold: float = 0.15, match_c
 
 
 def search_products_by_profile(
-    profile: dict,
-    user_message: str,
-    match_count: int = 3,
-    exclude_ids: list = None,
-    allow_out_of_stock: bool = False,
-    store_name: str = None
+        profile: dict,
+        user_message: str,
+        match_count: int = 3,
+        exclude_ids: list = None,
+        allow_out_of_stock: bool = False,
+        store_name: str = None
 ) -> list:
     """
     Finds products that match the user's skin/hair profile and query category.
@@ -696,12 +730,14 @@ def search_products_by_profile(
         matched_p_ids = set()
 
         if skin_type_id:
-            res = supabase_client.table("product_skin_types").select("product_id").eq("skin_type_id", skin_type_id).execute()
+            res = supabase_client.table("product_skin_types").select("product_id").eq("skin_type_id",
+                                                                                      skin_type_id).execute()
             if res.data:
                 matched_p_ids.update(row["product_id"] for row in res.data)
 
         if hair_type_id:
-            res = supabase_client.table("product_hair_types").select("product_id").eq("hair_type_id", hair_type_id).execute()
+            res = supabase_client.table("product_hair_types").select("product_id").eq("hair_type_id",
+                                                                                      hair_type_id).execute()
             if res.data:
                 ht_pids = set(row["product_id"] for row in res.data)
                 if matched_p_ids:
@@ -712,17 +748,20 @@ def search_products_by_profile(
                     matched_p_ids.update(ht_pids)
 
         # 3. Fetch up to 100 candidate products from DB
-        query = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").in_("category_id", category_ids)
-        
+        query = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").in_(
+            "category_id", category_ids)
+
         if matched_p_ids:
             query = query.in_("id", list(matched_p_ids))
-            
+
         products_response = query.limit(100).execute()
         raw_products = products_response.data or []
 
         # If no profile-matched products, fetch general category candidates
         if not raw_products:
-            gen_query = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").in_("category_id", category_ids).limit(100).execute()
+            gen_query = supabase_client.table("products").select(
+                "id, brand_id, category_id, universal_name, image_url").in_("category_id", category_ids).limit(
+                100).execute()
             raw_products = gen_query.data or []
 
         if not raw_products:
@@ -766,12 +805,17 @@ def search_products_by_profile(
         # Check if user explicitly wants out-of-stock products
         msg_lower = user_message.lower()
         wants_out_of_stock = "stok dışı" in msg_lower or "stokta olmayan" in msg_lower or "stokta yok" in msg_lower
-        
+
         if wants_out_of_stock:
             # Filter for out of stock products
             out_of_stock_prods = [p for p in result if p["is_out_of_stock"]]
             if out_of_stock_prods:
                 result = out_of_stock_prods
+        else:
+            # Default: exclude out of stock products unless explicitly requested
+            in_stock_prods = [p for p in result if not p["is_out_of_stock"]]
+            if in_stock_prods:
+                result = in_stock_prods
 
         # Dynamic rotation / shuffling if user asked for "farklı", "başka", "değişik", "diğer"
         wants_different = any(k in msg_lower for k in ["farklı", "başka", "değişik", "diğer", "yeni"])
@@ -791,18 +835,19 @@ def get_product_by_id(product_id: int) -> Optional[dict]:
     if not supabase_client:
         return None
     try:
-        res = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").eq("id", product_id).execute()
+        res = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").eq("id",
+                                                                                                                  product_id).execute()
         if not res.data:
             return None
         product = res.data[0]
-        
+
         markets = get_markets_map()
         store_res = supabase_client.table("store_mappings").select("*").eq("p_id", product_id).execute()
         stores = store_res.data if store_res.data else []
         for store in stores:
             store["market_name"] = markets.get(store.get("m_id"), f"Mağaza #{store.get('m_id')}")
         stores.sort(key=lambda s: s.get("current_price") or 99999)
-        
+
         product["store_mappings"] = stores
         product["category_name"] = get_categories_map().get(product.get("category_id"), "Bilinmiyor")
         return product
@@ -820,14 +865,17 @@ def get_product_by_name(name: str) -> Optional[dict]:
         if not clean_name:
             return None
 
-        res = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").ilike("universal_name", f"%{clean_name}%").limit(1).execute()
+        res = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").ilike(
+            "universal_name", f"%{clean_name}%").limit(1).execute()
         if res.data and len(res.data) > 0:
             return get_product_by_id(res.data[0]["id"])
 
         words = clean_name.split()
         if len(words) >= 2:
             short_name = " ".join(words[:3])
-            res2 = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").ilike("universal_name", f"%{short_name}%").limit(1).execute()
+            res2 = supabase_client.table("products").select(
+                "id, brand_id, category_id, universal_name, image_url").ilike("universal_name",
+                                                                              f"%{short_name}%").limit(1).execute()
             if res2.data and len(res2.data) > 0:
                 return get_product_by_id(res2.data[0]["id"])
     except Exception as e:
@@ -837,11 +885,11 @@ def get_product_by_name(name: str) -> Optional[dict]:
 
 
 def get_product_alternatives(
-    product_id: int,
-    profile: dict,
-    store_name: Optional[str] = None,
-    cheaper_than: Optional[float] = None,
-    match_count: int = 3
+        product_id: int,
+        profile: dict,
+        store_name: Optional[str] = None,
+        cheaper_than: Optional[float] = None,
+        match_count: int = 3
 ) -> list:
     """
     Finds alternative products in the same category as the reference product.
@@ -854,24 +902,25 @@ def get_product_alternatives(
     """
     if not supabase_client:
         return []
-    
+
     try:
         # 1. Fetch reference product to get category
         ref_product = get_product_by_id(product_id)
         if not ref_product:
             return []
-        
+
         category_id = ref_product.get("category_id")
         if not category_id:
             return []
-            
+
         # 2. Query products in the same category
-        query = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").eq("category_id", category_id).neq("id", product_id)
+        query = supabase_client.table("products").select("id, brand_id, category_id, universal_name, image_url").eq(
+            "category_id", category_id).neq("id", product_id)
         res = query.limit(50).execute()
         candidates = res.data or []
         if not candidates:
             return []
-            
+
         # Map store name to m_id if provided
         target_m_id = None
         if store_name:
@@ -880,83 +929,90 @@ def get_product_alternatives(
                 if m_name.lower() == store_name.lower():
                     target_m_id = m_id
                     break
-        
+
         load_onboarding_lookups()
         categories = get_categories_map()
-        
+
         # Profile matching IDs
         skin_type = (profile.get("skin_type") or "").lower()
         hair_type = (profile.get("hair_type") or "").lower()
         skin_concerns = profile.get("skin_concerns", [])
-        
+
         skin_type_id = SKIN_TYPES_LOOKUP.get(skin_type)
         hair_type_id = HAIR_TYPES_LOOKUP.get(hair_type)
-        
-        skin_concern_ids = [SKIN_CONCERNS_LOOKUP.get(c.lower()) for c in skin_concerns if SKIN_CONCERNS_LOOKUP.get(c.lower())]
-        
+
+        skin_concern_ids = [SKIN_CONCERNS_LOOKUP.get(c.lower()) for c in skin_concerns if
+                            SKIN_CONCERNS_LOOKUP.get(c.lower())]
+
         markets = get_markets_map()
         results = []
-        
+
         for p in candidates:
             p_id = p["id"]
-            
+
             # Fetch store mappings for this candidate
             store_res = supabase_client.table("store_mappings").select("*").eq("p_id", p_id).execute()
             stores = store_res.data or []
-            
+
             # Apply store filter
             if target_m_id is not None:
                 stores = [s for s in stores if s.get("m_id") == target_m_id]
                 if not stores:
                     continue
-            
+
             for s in stores:
                 s["market_name"] = markets.get(s.get("m_id"), f"Mağaza #{s.get('m_id')}")
-            
+
             # Find cheapest price
             valid_prices = [
-                float(s["current_price"]) for s in stores 
+                float(s["current_price"]) for s in stores
                 if s.get("current_price") is not None and float(s["current_price"]) > 0
             ]
-            
+
             lowest_price = min(valid_prices) if valid_prices else None
-            
+
+            # Skip out-of-stock alternatives (no valid price anywhere)
+            if lowest_price is None:
+                continue
+
             # Apply cheaper_than filter
             if cheaper_than is not None:
-                if lowest_price is None or lowest_price >= float(cheaper_than):
+                if lowest_price >= float(cheaper_than):
                     continue
-            
+
             # Calculate match score based on user profile
             match_score = 0
-            
+
             if skin_type_id:
-                skin_res = supabase_client.table("product_skin_types").select("product_id").eq("product_id", p_id).eq("skin_type_id", skin_type_id).execute()
+                skin_res = supabase_client.table("product_skin_types").select("product_id").eq("product_id", p_id).eq(
+                    "skin_type_id", skin_type_id).execute()
                 if skin_res.data:
                     match_score += 3
-                    
+
             if skin_concern_ids:
-                concern_res = supabase_client.table("product_skin_concerns").select("skin_concern_id").eq("product_id", p_id).in_("skin_concern_id", skin_concern_ids).execute()
+                concern_res = supabase_client.table("product_skin_concerns").select("skin_concern_id").eq("product_id",
+                                                                                                          p_id).in_(
+                    "skin_concern_id", skin_concern_ids).execute()
                 match_score += len(concern_res.data or []) * 2
-                
+
             if hair_type_id:
-                hair_res = supabase_client.table("product_hair_types").select("product_id").eq("product_id", p_id).eq("hair_type_id", hair_type_id).execute()
+                hair_res = supabase_client.table("product_hair_types").select("product_id").eq("product_id", p_id).eq(
+                    "hair_type_id", hair_type_id).execute()
                 if hair_res.data:
                     match_score += 2
-                    
+
             stores.sort(key=lambda s: s.get("current_price") or 99999)
             p["store_mappings"] = stores
             p["category_name"] = categories.get(category_id, "Bilinmiyor")
             p["match_score"] = match_score
             p["lowest_price"] = lowest_price
-            
+
             results.append(p)
-            
+
         # Sort results: profile match score descending, lowest price ascending
         results.sort(key=lambda x: (-x.get("match_score", 0), x.get("lowest_price") or 99999))
         return results[:match_count]
-        
+
     except Exception as e:
         print(f"Error getting product alternatives for {product_id}: {e}")
         return []
-
-

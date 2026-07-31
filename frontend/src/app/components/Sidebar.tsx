@@ -108,7 +108,7 @@ export function Sidebar({
   <img
     src="/beautrics_logo.png"
     alt="Beautrics"
-    className="w-55 h-auto object-contain select-none drop-shadow-[0_0_18px_rgba(255,183,178,0.25)]"
+    className="w-48 h-auto object-contain select-none drop-shadow-[0_0_18px_rgba(255,183,178,0.25)]"
     draggable={false}
   />
 </div>

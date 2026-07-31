@@ -7,13 +7,10 @@ from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import chatbot and database modules
-from test.chatbot import chatbot_app, get_ai_config, update_ai_config
-from test.database import (
-    get_user_profile,
-    update_user_profile,
-    supabase_client,
-    get_markets_map,
-    get_categories_map
+from chatbot import chatbot_app, get_ai_config, update_ai_config
+from database import (
+    get_user_profile, update_user_profile, supabase_client,
+    get_markets_map, get_categories_map
 )
 
 # Load environment variables
@@ -499,7 +496,7 @@ def get_admin_users():
         ]
 
     # 3. Merge dynamic profiles from IN_MEMORY_PROFILES
-    from test.database import IN_MEMORY_PROFILES
+    from database import IN_MEMORY_PROFILES
     for uid, pdata in IN_MEMORY_PROFILES.items():
         if not any(u["user_id"] == uid or u["email"] == pdata.get("email") for u in users):
             users.append({

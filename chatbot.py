@@ -8,7 +8,7 @@ from langgraph.graph import StateGraph, END
 from openai import OpenAI
 
 # Import database functions
-from test.database import (
+from database import (
     get_user_profile,
     update_user_profile,
     search_products_by_keyword,
@@ -314,6 +314,7 @@ def format_product_context(products: list) -> str:
         lines.append(f"{i}. {p.get('universal_name')} (Kategori: {p.get('category_name', 'N/A')})")
 
         stores = p.get("store_mappings", [])
+        has_valid_price = False
         if stores:
             for st in stores:
                 market_name = st.get("market_name", get_market_name(st.get("m_id", 0)))
@@ -321,11 +322,18 @@ def format_product_context(products: list) -> str:
                 url = st.get("product_url", "#")
 
                 if price and price > 0:
+                    has_valid_price = True
                     lines.append(f"   - {market_name}: {price} TL | Link: {url}")
-        else:
-            lines.append("   - Fiyat bilgisi bulunamadı")
+
+        if not has_valid_price:
+            lines.append(
+                "   - STOK DURUMU: STOK DIŞI (hiçbir mağazada satışta değil). "
+                "BU ÜRÜNÜ ÖNERME veya 'en uygun seçenek' olarak SUNMA."
+            )
 
     return "\n".join(lines)
+
+
 def build_product_response(products: list) -> str:
     """LLM boş cevap verirse ürünlerden güvenli bir fallback metni oluşturur."""
     if not products:
@@ -499,9 +507,11 @@ def vector_rag_node(state: AgentState):
 
     effective_budget = get_effective_budget(profile, state.chat_budget_override)
 
-    try:
-        matched_products = []
+    matched_products = []
+    msg_lower = (last_msg or "").lower()
+    wants_out_of_stock = "stok dışı" in msg_lower or "stokta olmayan" in msg_lower or "stokta yok" in msg_lower
 
+    try:
         # 0. Check if query contains product ID tag [ID:xxx] or specific product name in quotes
         id_match = re.search(r'\[ID:(\d+)\]', last_msg) or re.search(r'id:(\d+)', last_msg, re.IGNORECASE)
         if id_match:
@@ -527,7 +537,7 @@ def vector_rag_node(state: AgentState):
                     input=search_query
                 )
                 query_embedding = emb_res.data[0].embedding
-                matched_products = match_products(query_embedding, match_count=3)
+                matched_products = match_products(query_embedding, match_count=3, allow_out_of_stock=wants_out_of_stock)
             except Exception as emb_err:
                 print(f"Vector search failed or not configured: {emb_err}")
 
@@ -535,8 +545,6 @@ def vector_rag_node(state: AgentState):
         previously_recommended = state.last_recommended_products or []
         exclude_ids = [p["id"] for p in previously_recommended if "id" in p]
 
-        msg_lower = (last_msg or "").lower()
-        wants_out_of_stock = "stok dışı" in msg_lower or "stokta olmayan" in msg_lower or "stokta yok" in msg_lower
         target_store = detect_store_name(last_msg)
 
         # 2. Fallback to profile-based category search with dynamic rotation & stock filter
@@ -556,6 +564,20 @@ def vector_rag_node(state: AgentState):
             matched_products = search_products_by_keyword(
                 "cilt bakım", match_count=3, exclude_ids=exclude_ids
             )
+
+        # 4.5 Stok dışı ürünleri filtrele (kullanıcı özellikle istemedikçe)
+        if not wants_out_of_stock:
+            in_stock_products = []
+            for p in matched_products:
+                stores = p.get("store_mappings", [])
+                valid_prices = [
+                    float(s["current_price"]) for s in stores
+                    if s.get("current_price") and float(s["current_price"]) > 0
+                ]
+                if valid_prices:
+                    in_stock_products.append(p)
+            if in_stock_products:
+                matched_products = in_stock_products
 
         # 5. Bütçe filtresi uygula
         if effective_budget.get("max_budget"):
@@ -593,8 +615,9 @@ def vector_rag_node(state: AgentState):
                 "1. Ürünün kullanıcının cilt/saç tipi ve cilt endişeleriyle neden uyumlu olduğunu açıkla.\n"
                 "2. Ürünün ana faydalarını ve nasıl/ne zaman kullanılması gerektiğini (örneğin akşam temizlik sonrası, rutinin son adımı olarak) belirt.\n"
                 "3. En uygun fiyat ve mağaza bilgisinden kısaca bahset.\n"
-                "4. Emoji kullanma. Samimi, uzman ve yardımsever bir dil kullan.\n"
-                "5. Yanıtı maksimum 3-4 öz ve doyurucu cümle ile ver.\n\n"
+                "4. Eğer ürün STOK DIŞI olarak işaretlenmişse, bunu asla 'en uygun seçenek' diye sunma; bunun yerine stokta olan bir alternatif öner ya da stok dışı olduğunu açıkça belirt.\n"
+                "5. Emoji kullanma. Samimi, uzman ve yardımsever bir dil kullan.\n"
+                "6. Yanıtı maksimum 3-4 öz ve doyurucu cümle ile ver.\n\n"
                 f"KULLANICI PROFİLİ:\n{profile_summary}\n\n"
                 f"ÜRÜN LİSTESİ VE DETAYLARI:\n{product_context}"
             )
@@ -606,8 +629,9 @@ def vector_rag_node(state: AgentState):
                 "1. Kullanıcıya özel kısa, nazik ve yönlendirici 1-2 cümlelik bir giriş cümlesi yaz.\n"
                 "2. Ürün isimlerini veya linklerini metin içinde tekrar liste olarak yazma (ürünler alttaki interaktif kartta gösterilecek).\n"
                 "3. En ucuz seçeneğe veya kullanıcının aradığı kritere kısaca değinebilirsin.\n"
-                "4. Emoji kullanma.\n"
-                "5. En fazla 40 kelime kullan.\n\n"
+                "4. Eğer ürün listesinde STOK DIŞI olarak işaretlenmiş bir ürün varsa, onu asla 'en uygun seçenek' ya da öneri olarak sunma; sadece stokta olan ürünlere odaklan.\n"
+                "5. Emoji kullanma.\n"
+                "6. En fazla 40 kelime kullan.\n\n"
                 f"KULLANICI PROFİLİ:\n{profile_summary}\n\n"
                 f"ÜRÜN LİSTESİ:\n{product_context}"
             )
@@ -677,7 +701,7 @@ def alternative_rag_node(state: AgentState):
         ref_product = None
         if state.last_recommended_products:
             ref_product = state.last_recommended_products[0]
-        
+
         # Eğer son önerilen ürün yoksa mesajdan ürün adı çıkarmayı dene
         if not ref_product:
             try:
