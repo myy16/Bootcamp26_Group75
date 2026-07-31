@@ -238,13 +238,23 @@ def get_user_profile(user_id: str):
     Fetches the profile of a user from the 'user_profiles' table with relation joins.
     Uses Supabase as the source of truth, with in-memory fallback.
     """
-    if not is_valid_uuid(user_id):
-        raise ValueError(f"Invalid user_id for Supabase profile lookup: {user_id}")
+    default_empty = {
+        "user_id": user_id,
+        "full_name": "Kullanıcı",
+        "skin_type": None,
+        "hair_type": None,
+        "skin_concerns": [],
+        "min_budget": None,
+        "max_budget": None,
+        "onboarding_completed": False
+    }
 
     memory_prof = IN_MEMORY_PROFILES.get(user_id, {})
+    if not is_valid_uuid(user_id):
+        return memory_prof if memory_prof else default_empty
 
     if not supabase_client:
-        return memory_prof if memory_prof else None
+        return memory_prof if memory_prof else default_empty
 
     try:
         # Query user profile with join on skin_types and hair_types
@@ -279,6 +289,8 @@ def get_user_profile(user_id: str):
             final_hair_type = (hair_type_name.lower() if hair_type_name else None) or memory_prof.get("hair_type")
             final_concerns = concerns if concerns else memory_prof.get("skin_concerns", [])
 
+            is_complete = bool(final_skin_type and final_hair_type and final_skin_type != "belirtilmedi" and final_hair_type != "belirtilmedi")
+
             profile = {
                 "user_id": user_id,
                 "full_name": profile_row.get("full_name") or memory_prof.get("full_name") or "User",
@@ -287,8 +299,7 @@ def get_user_profile(user_id: str):
                 "skin_concerns": final_concerns,
                 "min_budget": profile_row.get("min_budget") or memory_prof.get("min_budget"),
                 "max_budget": profile_row.get("max_budget") or memory_prof.get("max_budget"),
-                "onboarding_completed": True if final_skin_type and final_hair_type else profile_row.get(
-                    "onboarding_completed", False),
+                "onboarding_completed": is_complete,
             }
             IN_MEMORY_PROFILES[user_id] = profile
             return profile
@@ -296,7 +307,7 @@ def get_user_profile(user_id: str):
     except Exception as e:
         print(f"DB profile fetch failed, using memory fallback: {e}")
 
-    return IN_MEMORY_PROFILES.get(user_id)
+    return memory_prof if memory_prof else default_empty
 
 
 def update_user_profile(user_id: str, profile_data: dict):

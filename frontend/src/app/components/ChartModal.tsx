@@ -402,11 +402,11 @@ export function ChartModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-8 overflow-hidden font-sans"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-auto font-sans max-h-[88vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Başlık */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E8E2] bg-[#1B4332]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E8E2] bg-[#1B4332] shrink-0">
           <h2 className="text-base font-bold text-white pr-4 line-clamp-1">
             {productTitle || "Ürün"} Detay & Analiz
           </h2>
@@ -430,7 +430,7 @@ export function ChartModal({
         </div>
 
         {/* Tab Bar */}
-        <div className="flex border-b border-[#E8E8E2] bg-[#F5F5F0]">
+        <div className="flex border-b border-[#E8E8E2] bg-[#F5F5F0] shrink-0">
           <button
             onClick={() => setActiveTab("price")}
             className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-[13.5px] font-semibold transition-all border-b-2 ${
@@ -463,7 +463,7 @@ export function ChartModal({
           </button>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto max-h-[calc(88vh-120px)] flex-1">
           {loading ? (
             <div className="h-[320px] flex items-center justify-center text-sm text-gray-400 animate-pulse">
               Yükleniyor...
@@ -642,20 +642,6 @@ export function ChartModal({
                 </div>
               )}
 
-              {/* UX Designer Önerileri & Gelecek Planı */}
-              <div className="rounded-2xl border border-[#DCDBCF] bg-gradient-to-r from-[#FDFBF7] to-[#FAF8F2] p-5 shadow-sm space-y-3">
-                <h4 className="text-[12px] font-bold text-[#1B4332] uppercase tracking-[0.05em] flex items-center gap-1.5">
-                  💡 UX / UI Yol Haritası Önerileri (UX Scope)
-                </h4>
-                <p className="text-[12.5px] leading-relaxed text-gray-600">
-                  Kullanıcı deneyimini mükemmelleştirmek amacıyla ilerleyen aşamalarda bu sekme altına eklenebilecek akıllı özellikler:
-                </p>
-                <ul className="text-[12px] text-gray-600 space-y-2 list-disc list-inside pl-1">
-                  <li><strong>EWG Temiz İçerik Skoru:</strong> Formüldeki maddelerin 1-10 arası tehlike derecesini görsel bar grafik halinde puanlamak.</li>
-                  <li><strong>Komedojenik (Gözenek Tıkama) Analizi:</strong> İçeriklerdeki akne tetikleyici kimyasalları tarayarak hassas ciltleri uyarmak.</li>
-                  <li><strong>Akıllı Asit Çakışması Uyarısı:</strong> Sahip olduğunuz diğer kozmetiklerle aynı rutinde kullanıldığında (örn. Retinol + C Vitamini) oluşabilecek tahriş risklerini analiz etmek.</li>
-                </ul>
-              </div>
             </div>
           )}
         </div>

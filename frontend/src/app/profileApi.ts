@@ -121,7 +121,7 @@ export async function saveUserProfile(userId: string, input: SaveProfileInput) {
     hair_type_id: hairTypeId ? Number(hairTypeId) : null,
     min_budget: input.minBudget ?? null,
     max_budget: input.maxBudget ?? null,
-    onboarding_completed: input.onboardingCompleted ?? true,
+    onboarding_completed: input.onboardingCompleted ?? Boolean(skinTypeId && hairTypeId),
   };
 
   const { error: profileError } = await supabase

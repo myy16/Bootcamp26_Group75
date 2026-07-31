@@ -181,7 +181,7 @@ export function ProductCard({
               : "font-medium text-gray-500"
           }`}
         >
-          {store.price} ₺
+          {Number(store.price).toFixed(2)} ₺
         </div>
       </div>
     </div>

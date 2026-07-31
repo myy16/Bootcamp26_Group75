@@ -202,7 +202,7 @@ export function ProfilePage({
         skinConcernNames: form.skinConcernNames,
         minBudget: form.minBudget ? Number(form.minBudget) : null,
         maxBudget: form.maxBudget ? Number(form.maxBudget) : null,
-        onboardingCompleted: true,
+        onboardingCompleted: Boolean(form.skinTypeName && form.hairTypeName),
       });
 
       try {

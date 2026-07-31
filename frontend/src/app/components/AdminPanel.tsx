@@ -38,9 +38,14 @@ export function AdminPanel({ onBackToApp, onSignOut }: AdminPanelProps) {
   const [testResult, setTestResult] = useState("");
   const [testingAi, setTestingAi] = useState(false);
 
-  // Products state
+  // Products state & Filters
   const [products, setProducts] = useState<any[]>([]);
   const [searchProduct, setSearchProduct] = useState('');
+  const [selectedStore, setSelectedStore] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedBrand, setSelectedBrand] = useState<string>('all');
+  const [sortOrder, setSortOrder] = useState<string>('default');
+  const [analyticsMetric, setAnalyticsMetric] = useState<string>('store_cheapest');
   const [syncingPrices, setSyncingPrices] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string>("2026-07-29 23:25");
 
@@ -85,18 +90,26 @@ export function AdminPanel({ onBackToApp, onSignOut }: AdminPanelProps) {
           const mappings = p.store_mappings || [];
           const store_links: Record<string, string> = {};
           const prices: number[] = [];
+          const available_stores: string[] = [];
 
           mappings.forEach((m: any) => {
             const mName = ((Array.isArray(m.markets) ? m.markets[0]?.name : m.markets?.name) || "").toLowerCase();
             const url = m.product_url || "";
             const price = m.current_price || 0;
 
-            if (mName.includes("rossmann")) store_links["Rossmann"] = url;
-            else if (mName.includes("gratis")) store_links["Gratis"] = url;
-            else if (mName.includes("watsons")) store_links["Watsons"] = url;
-            else if (mName.includes("mion") || mName.includes("migros")) store_links["Mion"] = url;
+            let storeKey = "";
+            if (mName.includes("rossmann")) storeKey = "Rossmann";
+            else if (mName.includes("gratis")) storeKey = "Gratis";
+            else if (mName.includes("watsons")) storeKey = "Watsons";
+            else if (mName.includes("mion") || mName.includes("migros")) storeKey = "Mion";
 
-            if (price > 0) prices.push(price);
+            if (storeKey) {
+              if (url) store_links[storeKey] = url;
+              if (price > 0) {
+                prices.push(price);
+                if (!available_stores.includes(storeKey)) available_stores.push(storeKey);
+              }
+            }
           });
 
           const name = (p.universal_name || "İsimsiz Ürün").trim();
@@ -113,6 +126,7 @@ export function AdminPanel({ onBackToApp, onSignOut }: AdminPanelProps) {
             lowest_price: prices.length > 0 ? Math.min(...prices) : 0,
             image_url: p.image_url,
             store_links: store_links,
+            available_stores: available_stores,
             in_stock: true
           };
         });
@@ -336,6 +350,18 @@ export function AdminPanel({ onBackToApp, onSignOut }: AdminPanelProps) {
     }
   };
 
+  const fetchAiConfig = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/admin/ai-config");
+      const data = await res.json();
+      if (data.status === "success" && data.config) {
+        setAiConfig(data.config);
+      }
+    } catch (e) {
+      console.error("Error fetching AI config from backend:", e);
+    }
+  };
+
   const handleSaveAiConfig = async () => {
     setSavingAiConfig(true);
     try {
@@ -400,15 +426,120 @@ export function AdminPanel({ onBackToApp, onSignOut }: AdminPanelProps) {
     }
   };
 
-  const filteredProducts = products.filter(p => 
-    p.name?.toLowerCase().includes(searchProduct.toLowerCase()) ||
-    p.brand?.toLowerCase().includes(searchProduct.toLowerCase())
-  );
+  // Computed Categories and Brands options for filter dropdowns
+  const uniqueCategories = Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort();
+  const uniqueBrands = Array.from(new Set(products.map((p) => p.brand).filter(Boolean))).sort();
+
+  const filteredProducts = products
+    .filter((p) => {
+      // 1. Search Filter
+      const matchesSearch =
+        !searchProduct ||
+        p.name?.toLowerCase().includes(searchProduct.toLowerCase()) ||
+        p.brand?.toLowerCase().includes(searchProduct.toLowerCase()) ||
+        p.category?.toLowerCase().includes(searchProduct.toLowerCase());
+
+      // 2. Store Filter
+      const matchesStore =
+        selectedStore === "all" ||
+        (p.available_stores && p.available_stores.includes(selectedStore)) ||
+        (p.store_links && p.store_links[selectedStore] && !p.store_links[selectedStore].includes("search?q="));
+
+      // 3. Category Filter
+      const matchesCategory =
+        selectedCategory === "all" || p.category === selectedCategory;
+
+      // 4. Brand Filter
+      const matchesBrand =
+        selectedBrand === "all" || p.brand === selectedBrand;
+
+      return matchesSearch && matchesStore && matchesCategory && matchesBrand;
+    })
+    .sort((a, b) => {
+      if (sortOrder === "price_asc") return a.lowest_price - b.lowest_price;
+      if (sortOrder === "price_desc") return b.lowest_price - a.lowest_price;
+      if (sortOrder === "name_asc") return a.name.localeCompare(b.name, "tr");
+      return 0;
+    });
 
   const filteredUsers = users.filter(u =>
     u.full_name?.toLowerCase().includes(searchUser.toLowerCase()) ||
     u.email?.toLowerCase().includes(searchUser.toLowerCase())
   );
+
+  // --- COMPUTED DYNAMIC ANALYTICS BREAKDOWNS FOR OVERVIEW DROPDOWN ---
+  const storeCatalogBreakdown = (() => {
+    const storeCounts: Record<string, number> = { Rossmann: 0, Gratis: 0, Watsons: 0, Mion: 0 };
+    products.forEach((p) => {
+      if (p.available_stores && p.available_stores.length > 0) {
+        p.available_stores.forEach((st: string) => {
+          if (storeCounts[st] !== undefined) storeCounts[st]++;
+        });
+      } else if (p.store_links) {
+        Object.keys(p.store_links).forEach((st) => {
+          if (storeCounts[st] !== undefined && !p.store_links[st].includes("search?q=")) {
+            storeCounts[st]++;
+          }
+        });
+      }
+    });
+    const totalProds = products.length || 1;
+    return Object.entries(storeCounts).map(([name, count]) => ({
+      name,
+      count,
+      percentage: Math.min(100, Math.round((count / totalProds) * 100)),
+    }));
+  })();
+
+  const categoryBreakdown = (() => {
+    const counts: Record<string, number> = {};
+    products.forEach((p) => {
+      const cat = p.category || "Diğer";
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    const totalProds = products.length || 1;
+    return Object.entries(counts)
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage: Math.round((count / totalProds) * 100),
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  })();
+
+  const brandBreakdown = (() => {
+    const counts: Record<string, number> = {};
+    products.forEach((p) => {
+      const b = p.brand || "Diğer";
+      counts[b] = (counts[b] || 0) + 1;
+    });
+    const totalProds = products.length || 1;
+    return Object.entries(counts)
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage: Math.round((count / totalProds) * 100),
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  })();
+
+  const skinTypeBreakdown = (() => {
+    const counts: Record<string, number> = {};
+    users.forEach((u) => {
+      const st = u.skin_type || "Belirtilmedi";
+      counts[st] = (counts[st] || 0) + 1;
+    });
+    const totalUsers = users.length || 1;
+    return Object.entries(counts)
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage: Math.round((count / totalUsers) * 100),
+      }))
+      .sort((a, b) => b.count - a.count);
+  })();
 
   return (
     <div className="min-h-screen bg-[#F7F9F8] font-sans text-gray-800 flex flex-col">
@@ -560,68 +691,149 @@ export function AdminPanel({ onBackToApp, onSignOut }: AdminPanelProps) {
               </div>
             </div>
 
-            {/* Store Price Leadership Breakdown */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                <h3 className="text-base font-bold text-gray-800 mb-1 flex items-center gap-2">
-                  <Icon icon="lucide:trophy" className="w-5 h-5 text-amber-500" />
-                  Mağaza Fiyat Liderliği ("En Ucuz" Seçenek Oranları)
-                </h3>
-                <p className="text-xs text-gray-500 mb-6">Fiyat veritabanında fiyatı olan {stats.total_products || 345} üründe hangi mağaza kaç kez en ucuz fiyatı sundu?</p>
+            {/* DYNAMIC INTERACTIVE ANALYTICS CARD WITH METRIC DROPDOWN */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-6">
+              {/* Header with Metric Selector Dropdown */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Icon icon="lucide:pie-chart" className="w-5 h-5 text-[#1B4332]" />
+                    <h3 className="text-base font-bold text-gray-800">Sistem & Mağaza Analitiği Detayları</h3>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">İncelemek istediğiniz veri ve dağılım grafiğini sağdaki açılır menüden değiştirebilirsiniz.</p>
+                </div>
 
-                <div className="space-y-4">
-                  {(stats.store_breakdown || []).map((st: any) => (
-                    <div key={st.name}>
-                      <div className="flex justify-between text-xs font-semibold mb-1">
-                        <span className="text-gray-700">{st.name}</span>
-                        <span className="text-[#1B4332] font-bold">%{st.percentage} ({st.count} ürün)</span>
-                      </div>
-                      <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                        <div
-                          className="bg-[#1B4332] h-full rounded-full transition-all duration-500"
-                          style={{ width: `${st.percentage}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  ))}
+                {/* Metric Selection Dropdown */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-gray-600 shrink-0">Analiz Görünümü:</label>
+                  <select
+                    value={analyticsMetric}
+                    onChange={(e) => setAnalyticsMetric(e.target.value)}
+                    className="px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-[#1B4332] outline-none focus:border-[#1B4332] cursor-pointer shadow-xs"
+                  >
+                    <option value="store_cheapest">🏆 Mağaza Fiyat Liderliği (En Ucuz Oranları)</option>
+                    <option value="store_catalog">🛍️ Mağaza Bazlı Ürün Çeşitliliği (Katalog Listeleme)</option>
+                    <option value="category_breakdown">🏷️ Kategoriye Göre Ürün Dağılımı</option>
+                    <option value="brand_breakdown">✨ Markalara Göre Ürün Dağılımı (Top Markalar)</option>
+                    <option value="user_skin_types">👤 Kullanıcı Cilt Tipi Dağılımı</option>
+                  </select>
                 </div>
               </div>
 
-              {/* Quick Actions & System Log Panel */}
-              <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between">
+              {/* VIEW 1: Store Price Leadership */}
+              {analyticsMetric === 'store_cheapest' && (
                 <div>
-                  <h3 className="text-base font-bold text-gray-800 mb-1 flex items-center gap-2">
-                    <Icon icon="lucide:refresh-cw" className="w-5 h-5 text-[#2D6A4F]" />
-                    Fiyat Senkronizasyonu & Scraper İşlemleri
-                  </h3>
-                  <p className="text-xs text-gray-500 mb-4">
-                    Mağazaların (Rossmann, Gratis, Watsons, Mion) canlı fiyatlarını manuel olarak senkronize edin.
-                  </p>
-
-                  <div className="p-4 bg-[#F5F5F0] rounded-xl border border-gray-200 mb-4 space-y-1">
-                    <div className="text-xs font-semibold text-gray-700">Son Fiyat Güncelleme Zamanı:</div>
-                    <div className="text-sm font-bold text-[#1B4332] font-mono">{lastSyncTime}</div>
+                  <div className="text-xs text-gray-500 mb-4 font-medium">
+                    Veritabanındaki {stats.total_products || 345} üründe hangi mağaza kaç kez en ucuz fiyatı sundu?
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {(stats.store_breakdown || []).map((st: any) => (
+                      <div key={st.name} className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-100 flex flex-col justify-between">
+                        <div className="flex justify-between items-center text-xs font-semibold mb-2">
+                          <span className="text-gray-800 font-bold text-sm">{st.name}</span>
+                          <span className="text-[#1B4332] font-bold bg-emerald-100 px-2 py-0.5 rounded-full text-xs">%{st.percentage}</span>
+                        </div>
+                        <div className="text-xs text-emerald-800 mb-2 font-medium">{st.count} üründe en ucuz</div>
+                        <div className="w-full bg-emerald-200/50 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-[#1B4332] h-full rounded-full transition-all duration-500" style={{ width: `${st.percentage}%` }}></div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
+              )}
 
-                <button
-                  onClick={handleTriggerPriceSync}
-                  disabled={syncingPrices}
-                  className="w-full py-3 px-4 bg-[#1B4332] hover:bg-[#153427] text-white font-semibold rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  {syncingPrices ? (
-                    <>
-                      <Icon icon="lucide:loader-2" className="w-4 h-4 animate-spin" />
-                      Mağaza Fiyatları Taranıyor...
-                    </>
-                  ) : (
-                    <>
-                      <Icon icon="lucide:zap" className="w-4 h-4 text-[#FFB7B2]" />
-                      Fiyatları Şimdi Güncelle (Scraper Tetikle)
-                    </>
-                  )}
-                </button>
-              </div>
+              {/* VIEW 2: Store Catalog Coverage */}
+              {analyticsMetric === 'store_catalog' && (
+                <div>
+                  <div className="text-xs text-gray-500 mb-4 font-medium">
+                    Sistemdeki toplam {products.length} ürünün mağazalara göre stok/link bulunma sayısı:
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {storeCatalogBreakdown.map((st: any) => (
+                      <div key={st.name} className="p-4 bg-blue-50/40 rounded-xl border border-blue-100 flex flex-col justify-between">
+                        <div className="flex justify-between items-center text-xs font-semibold mb-2">
+                          <span className="text-gray-800 font-bold text-sm">{st.name}</span>
+                          <span className="text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded-full text-xs">%{st.percentage} Kapsam</span>
+                        </div>
+                        <div className="text-xs text-blue-800 mb-2 font-medium">{st.count} ürün mevcut</div>
+                        <div className="w-full bg-blue-200/50 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-blue-600 h-full rounded-full transition-all duration-500" style={{ width: `${st.percentage}%` }}></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* VIEW 3: Category Breakdown */}
+              {analyticsMetric === 'category_breakdown' && (
+                <div>
+                  <div className="text-xs text-gray-500 mb-4 font-medium">
+                    Sistemde en çok ürün bulunan ilk 8 kategori ve ürün sayıları:
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {categoryBreakdown.map((cat: any) => (
+                      <div key={cat.name} className="p-4 bg-purple-50/40 rounded-xl border border-purple-100 flex flex-col justify-between">
+                        <div className="flex justify-between items-center text-xs font-semibold mb-2">
+                          <span className="text-gray-800 font-bold text-xs truncate max-w-[120px]">{cat.name}</span>
+                          <span className="text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded-full text-xs">%{cat.percentage}</span>
+                        </div>
+                        <div className="text-xs text-purple-800 mb-2 font-medium">{cat.count} ürün</div>
+                        <div className="w-full bg-purple-200/50 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-purple-600 h-full rounded-full transition-all duration-500" style={{ width: `${cat.percentage}%` }}></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* VIEW 4: Brand Breakdown */}
+              {analyticsMetric === 'brand_breakdown' && (
+                <div>
+                  <div className="text-xs text-gray-500 mb-4 font-medium">
+                    Sistemde en çok ürünü listelenen ilk 8 marka ve katalogdaki payları:
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {brandBreakdown.map((b: any) => (
+                      <div key={b.name} className="p-4 bg-amber-50/40 rounded-xl border border-amber-100 flex flex-col justify-between">
+                        <div className="flex justify-between items-center text-xs font-semibold mb-2">
+                          <span className="text-gray-800 font-bold text-sm truncate max-w-[120px]">{b.name}</span>
+                          <span className="text-amber-700 font-bold bg-amber-100 px-2 py-0.5 rounded-full text-xs">%{b.percentage}</span>
+                        </div>
+                        <div className="text-xs text-amber-800 mb-2 font-medium">{b.count} ürün</div>
+                        <div className="w-full bg-amber-200/50 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-amber-600 h-full rounded-full transition-all duration-500" style={{ width: `${b.percentage}%` }}></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* VIEW 5: User Skin Type Breakdown */}
+              {analyticsMetric === 'user_skin_types' && (
+                <div>
+                  <div className="text-xs text-gray-500 mb-4 font-medium">
+                    Sisteme kayıtlı {users.length} kullanıcının tercih ettiği cilt tipi kırılımı:
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    {skinTypeBreakdown.map((st: any) => (
+                      <div key={st.name} className="p-4 bg-teal-50/40 rounded-xl border border-teal-100 flex flex-col justify-between">
+                        <div className="flex justify-between items-center text-xs font-semibold mb-2">
+                          <span className="text-gray-800 font-bold text-sm">{st.name}</span>
+                          <span className="text-teal-700 font-bold bg-teal-100 px-2 py-0.5 rounded-full text-xs">%{st.percentage}</span>
+                        </div>
+                        <div className="text-xs text-teal-800 mb-2 font-medium">{st.count} Kullanıcı</div>
+                        <div className="w-full bg-teal-200/50 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-teal-600 h-full rounded-full transition-all duration-500" style={{ width: `${st.percentage}%` }}></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -777,96 +989,231 @@ export function AdminPanel({ onBackToApp, onSignOut }: AdminPanelProps) {
         {/* ============================================================== */}
         {activeTab === 'products' && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden space-y-4">
-            <div className="p-6 pb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Header & Badges */}
+            <div className="p-6 pb-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-bold text-[#1B4332]">Ürün Kataloğu ve Direkt Mağaza Linkleri</h3>
                   <span className="bg-emerald-100 text-[#1B4332] text-xs font-bold px-2.5 py-0.5 rounded-full">
-                    Supabase'den Canlı Çekilen Toplam {products.length} Ürün
+                    Görüntülenen: {filteredProducts.length} / {products.length} Ürün
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">Sistemde kayıtlı tüm ürünlerin en ucuz fiyatları ve mağaza yönlendirme bağlantıları.</p>
+                <p className="text-xs text-gray-500 mt-0.5">Sistemde kayıtlı tüm ürünlerin en ucuz fiyatları ve doğrudan mağaza yönlendirme bağlantıları.</p>
               </div>
 
-              <div className="relative w-full md:w-72">
-                <Icon icon="lucide:search" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Ürün veya marka ara..."
-                  value={searchProduct}
-                  onChange={(e) => setSearchProduct(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-[#1B4332]"
-                />
-              </div>
+              {/* Reset Filters button if any filter is active */}
+              {(selectedStore !== 'all' || selectedCategory !== 'all' || selectedBrand !== 'all' || sortOrder !== 'default' || searchProduct !== '') && (
+                <button
+                  onClick={() => {
+                    setSearchProduct('');
+                    setSelectedStore('all');
+                    setSelectedCategory('all');
+                    setSelectedBrand('all');
+                    setSortOrder('default');
+                  }}
+                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all self-start md:self-auto cursor-pointer"
+                >
+                  <Icon icon="lucide:rotate-ccw" className="w-3.5 h-3.5" />
+                  Filtreleri Sıfırla
+                </button>
+              )}
             </div>
 
-            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-              <table className="w-full text-left text-xs text-gray-700">
-                <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-bold tracking-wider border-y border-gray-100 sticky top-0 z-10">
-                  <tr>
-                    <th className="py-3.5 px-6">Görsel & Ürün</th>
-                    <th className="py-3.5 px-4">Marka / Kategori</th>
-                    <th className="py-3.5 px-4">En Ucuz Fiyat</th>
-                    <th className="py-3.5 px-4">Mağaza Bağlantıları (Rossmann / Gratis / Watsons / Mion)</th>
-                    <th className="py-3.5 px-4 text-center">Stok</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredProducts.map((p) => (
-                    <tr key={p.id} className="hover:bg-gray-50/80 transition-colors">
-                      <td className="py-3 px-6 flex items-center gap-3">
-                        <img
-                          src={p.image_url || "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&q=80&w=150"}
-                          alt={p.name}
-                          className="w-10 h-10 object-cover rounded-lg border border-gray-200"
-                        />
-                        <span className="font-semibold text-gray-800 max-w-xs truncate">{p.name}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-[#1B4332]">{p.brand}</div>
-                        <div className="text-[11px] text-gray-400">{p.category}</div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="font-bold text-emerald-700 text-sm">₺{p.lowest_price}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <a
-                            href={p.store_links?.Rossmann || "#"}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-2 py-1 bg-red-50 text-red-600 rounded text-[10px] font-bold hover:underline flex items-center gap-1"
-                          >
-                            Rossmann <Icon icon="lucide:external-link" className="w-3 h-3" />
-                          </a>
-                          <a
-                            href={p.store_links?.Gratis || "#"}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-2 py-1 bg-[#2D6A4F]/10 text-[#2D6A4F] rounded text-[10px] font-bold hover:underline flex items-center gap-1"
-                          >
-                            Gratis <Icon icon="lucide:external-link" className="w-3 h-3" />
-                          </a>
-                          <a
-                            href={p.store_links?.Watsons || "#"}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-2 py-1 bg-teal-50 text-teal-700 rounded text-[10px] font-bold hover:underline flex items-center gap-1"
-                          >
-                            Watsons <Icon icon="lucide:external-link" className="w-3 h-3" />
-                          </a>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          Stokta
-                        </span>
-                      </td>
-                    </tr>
+            {/* --- DETAYLI FİLTRELEME VE ARAMA PANELİ --- */}
+            <div className="px-6 py-2 bg-gray-50/60 border-b border-gray-100 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+              {/* 1. Arama */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 mb-1">Arama</label>
+                <div className="relative">
+                  <Icon icon="lucide:search" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-3.5 h-3.5" />
+                  <input
+                    type="text"
+                    placeholder="Ürün veya marka..."
+                    value={searchProduct}
+                    onChange={(e) => setSearchProduct(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs outline-none focus:border-[#1B4332]"
+                  />
+                </div>
+              </div>
+
+              {/* 2. Mağaza Seçimi */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 mb-1">Mağaza</label>
+                <select
+                  value={selectedStore}
+                  onChange={(e) => setSelectedStore(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 outline-none focus:border-[#1B4332] cursor-pointer"
+                >
+                  <option value="all">Tüm Mağazalar</option>
+                  <option value="Rossmann">Rossmann</option>
+                  <option value="Gratis">Gratis</option>
+                  <option value="Watsons">Watsons</option>
+                  <option value="Mion">Mion</option>
+                </select>
+              </div>
+
+              {/* 3. Kategori Seçimi */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 mb-1">Kategori</label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 outline-none focus:border-[#1B4332] cursor-pointer"
+                >
+                  <option value="all">Tüm Kategoriler ({uniqueCategories.length})</option>
+                  {uniqueCategories.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
                   ))}
-                </tbody>
-              </table>
+                </select>
+              </div>
+
+              {/* 4. Marka Seçimi */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 mb-1">Marka</label>
+                <select
+                  value={selectedBrand}
+                  onChange={(e) => setSelectedBrand(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 outline-none focus:border-[#1B4332] cursor-pointer"
+                >
+                  <option value="all">Tüm Markalar ({uniqueBrands.length})</option>
+                  {uniqueBrands.map((b) => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 5. Sıralama */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 mb-1">Sıralama</label>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 outline-none focus:border-[#1B4332] cursor-pointer"
+                >
+                  <option value="default">Varsayılan</option>
+                  <option value="price_asc">Fiyat: Artan (En Ucuz)</option>
+                  <option value="price_desc">Fiyat: Azalan (En Yüksek)</option>
+                  <option value="name_asc">İsim: A-Z</option>
+                </select>
+              </div>
             </div>
+
+            {/* TABLO VEYA BOŞ DURUM */}
+            {filteredProducts.length === 0 ? (
+              <div className="p-12 text-center flex flex-col items-center justify-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400">
+                  <Icon icon="lucide:package-search" className="w-6 h-6" />
+                </div>
+                <div className="font-bold text-gray-700 text-sm">Aradığınız kriterlere uygun ürün bulunamadı</div>
+                <p className="text-xs text-gray-500">Lütfen mağaza, marka veya kategori filtrelerinizi değiştirin.</p>
+                <button
+                  onClick={() => {
+                    setSearchProduct('');
+                    setSelectedStore('all');
+                    setSelectedCategory('all');
+                    setSelectedBrand('all');
+                    setSortOrder('default');
+                  }}
+                  className="mt-2 px-4 py-2 bg-[#1B4332] text-white text-xs font-semibold rounded-xl"
+                >
+                  Filtreleri Temizle
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                <table className="w-full text-left text-xs text-gray-700">
+                  <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-bold tracking-wider border-y border-gray-100 sticky top-0 z-10">
+                    <tr>
+                      <th className="py-3.5 px-6">Görsel & Ürün</th>
+                      <th className="py-3.5 px-4">Marka / Kategori</th>
+                      <th className="py-3.5 px-4">En Ucuz Fiyat</th>
+                      <th className="py-3.5 px-4">Mağaza Bağlantıları (Rossmann / Gratis / Watsons / Mion)</th>
+                      <th className="py-3.5 px-4 text-center">Stok</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredProducts.map((p) => (
+                      <tr key={p.id} className="hover:bg-gray-50/80 transition-colors">
+                        <td className="py-3 px-6 flex items-center gap-3">
+                          <img
+                            src={p.image_url || "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&q=80&w=150"}
+                            alt={p.name}
+                            className="w-10 h-10 object-cover rounded-lg border border-gray-200 shrink-0"
+                          />
+                          <span className="font-semibold text-gray-800 max-w-xs truncate">{p.name}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-[#1B4332]">{p.brand}</div>
+                          <div className="text-[11px] text-gray-400">{p.category}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-bold text-emerald-700 text-sm">
+                            {p.lowest_price > 0 ? `₺${p.lowest_price}` : "Stok Dışı / Link Var"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <a
+                              href={p.store_links?.Rossmann || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={`px-2 py-1 rounded text-[10px] font-bold hover:underline flex items-center gap-1 ${
+                                p.available_stores?.includes("Rossmann")
+                                  ? "bg-red-50 text-red-600 border border-red-200"
+                                  : "bg-gray-50 text-gray-400"
+                              }`}
+                            >
+                              Rossmann <Icon icon="lucide:external-link" className="w-3 h-3" />
+                            </a>
+                            <a
+                              href={p.store_links?.Gratis || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={`px-2 py-1 rounded text-[10px] font-bold hover:underline flex items-center gap-1 ${
+                                p.available_stores?.includes("Gratis")
+                                  ? "bg-[#2D6A4F]/10 text-[#2D6A4F] border border-[#2D6A4F]/20"
+                                  : "bg-gray-50 text-gray-400"
+                              }`}
+                            >
+                              Gratis <Icon icon="lucide:external-link" className="w-3 h-3" />
+                            </a>
+                            <a
+                              href={p.store_links?.Watsons || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={`px-2 py-1 rounded text-[10px] font-bold hover:underline flex items-center gap-1 ${
+                                p.available_stores?.includes("Watsons")
+                                  ? "bg-teal-50 text-teal-700 border border-teal-200"
+                                  : "bg-gray-50 text-gray-400"
+                              }`}
+                            >
+                              Watsons <Icon icon="lucide:external-link" className="w-3 h-3" />
+                            </a>
+                            <a
+                              href={p.store_links?.Mion || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={`px-2 py-1 rounded text-[10px] font-bold hover:underline flex items-center gap-1 ${
+                                p.available_stores?.includes("Mion")
+                                  ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                  : "bg-gray-50 text-gray-400"
+                              }`}
+                            >
+                              Mion <Icon icon="lucide:external-link" className="w-3 h-3" />
+                            </a>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            Stokta
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

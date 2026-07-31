@@ -22,28 +22,27 @@ from database import (
 )
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 RAW_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_MODEL = RAW_MODEL.replace("groq/", "").replace("openai/", "").strip() or "llama-3.3-70b-versatile"
 
-def get_clean_model_name(model_name: str = None) -> str:
-    m = model_name or AI_CONFIG.get("active_model") or GROQ_MODEL or "llama-3.3-70b-versatile"
-    m = str(m).replace("groq/", "").replace("openai/", "").strip()
-    return m if m else "llama-3.3-70b-versatile"
+if not GROQ_API_KEY and not OPENAI_API_KEY:
+    raise RuntimeError("Neither GROQ_API_KEY nor OPENAI_API_KEY found in .env file.")
 
-if not GROQ_API_KEY:
-    raise RuntimeError(
-        "GROQ_API_KEY bulunamadı. Proje kökündeki .env dosyasına "
-        "GROQ_API_KEY=gsk_... şeklinde ekleyin."
-    )
-
-client = OpenAI(
+groq_client = OpenAI(
     api_key=GROQ_API_KEY,
     base_url="https://api.groq.com/openai/v1",
-)
+) if GROQ_API_KEY else None
+
+openai_client = OpenAI(
+    api_key=OPENAI_API_KEY
+) if OPENAI_API_KEY else None
+
+client = groq_client or openai_client
 
 # === Live Dynamic AI Configuration (Managed via Admin Panel) ===
 AI_CONFIG: Dict[str, Any] = {
-    "active_model": GROQ_MODEL,
+    "active_model": os.getenv("GROQ_MODEL", "groq/llama-3.3-70b-versatile"),
     "temperature": 0.7,
     "max_tokens": 400,
     "system_prompt_override": "",
@@ -62,6 +61,24 @@ def update_ai_config(new_config: dict) -> dict:
     if "system_prompt_override" in new_config:
         AI_CONFIG["system_prompt_override"] = str(new_config["system_prompt_override"])
     return AI_CONFIG
+
+def get_clean_model_name(model_name: str = None) -> str:
+    m = model_name or AI_CONFIG.get("active_model") or GROQ_MODEL or "llama-3.3-70b-versatile"
+    m = str(m).replace("groq/", "").replace("openai/", "").strip()
+    return m if m else "llama-3.3-70b-versatile"
+
+def get_llm_client_and_model(model_name_override: str = None):
+    target_model = model_name_override or AI_CONFIG.get("active_model") or GROQ_MODEL or "llama-3.3-70b-versatile"
+    target_str = str(target_model).strip()
+
+    if target_str.startswith("openai/") or "gpt" in target_str.lower():
+        clean_model = target_str.replace("openai/", "").strip()
+        if openai_client:
+            return openai_client, clean_model
+        return groq_client or client, "llama-3.3-70b-versatile"
+
+    clean_model = target_str.replace("groq/", "").strip()
+    return groq_client or client, clean_model if clean_model else "llama-3.3-70b-versatile"
 # === Define State Schema ===
 class AgentState(BaseModel):
     user_id: str
@@ -201,9 +218,10 @@ def extract_profile_info(user_message: str) -> dict:
             f"Kullanıcı mesajı: {user_message}"
         )
 
+        llm_client, model_name = get_llm_client_and_model()
         def make_call():
-            return client.chat.completions.create(
-                model=get_clean_model_name(),
+            return llm_client.chat.completions.create(
+                model=model_name,
                 messages=[
                     {"role": "system", "content": "Sen bir kozmetik profil çıkarıcısısın."},
                     {"role": "user", "content": prompt}
@@ -272,9 +290,10 @@ def determine_intent(user_message: str) -> str:
             f"Mesaj: {user_message}"
         )
 
+        llm_client, model_name = get_llm_client_and_model()
         def make_call():
-            return client.chat.completions.create(
-                model=get_clean_model_name(),
+            return llm_client.chat.completions.create(
+                model=model_name,
                 messages=[
                     {
                         "role": "system",
@@ -379,17 +398,9 @@ def fetch_profile_node(state: AgentState):
     # Re-fetch profile after potential update
     profile = get_user_profile(user_id) or {}
 
-    # If skin_type or hair_type is missing, but user is asking for product recommendations/alternatives,
-    # supply sensible defaults ("normal") so user is never trapped in onboarding loop.
-    intent = determine_intent(last_msg) if last_msg else "general"
-    if (not profile.get("skin_type") or not profile.get("hair_type")) and (intent in ("recommendation", "alternative", "store_compare") or "atlandı" in (last_msg or "").lower()):
-        profile["skin_type"] = profile.get("skin_type") or "normal"
-        profile["hair_type"] = profile.get("hair_type") or "normal"
-        profile["skin_concerns"] = profile.get("skin_concerns") or []
-        update_user_profile(user_id, profile)
-
+    # Required fields check
     required = ["skin_type", "hair_type"]
-    missing = [f for f in required if not profile.get(f)]
+    missing = [f for f in required if not profile.get(f) or str(profile.get(f)).lower() == "belirtilmedi"]
 
     # Did this message just complete the profile?
     is_now_complete = len(missing) == 0
@@ -453,6 +464,48 @@ def profile_confirmed_node(state: AgentState):
     return {"messages": new_messages}
 
 
+def sanitize_response(text: str) -> str:
+    """
+    Strips unexpected non-Turkish/non-Latin characters from LLM output.
+    Removes CJK (Chinese/Japanese/Korean), Arabic, Devanagari and other
+    non-European script Unicode blocks that sometimes leak into model output.
+    """
+    import unicodedata
+    # Unicode ranges to KEEP: Basic Latin, Latin-1 Supplement, Latin Extended-A/B,
+    # General Punctuation, Currency Symbols, Letterlike Symbols, arrows, math,
+    # and common symbols (includes Turkish special chars: ş,ğ,ü,ö,ç,ı etc.)
+    ALLOWED_RANGES = [
+        (0x0000, 0x024F),  # Basic Latin + Latin Extended A/B (covers Turkish)
+        (0x0250, 0x02AF),  # IPA Extensions
+        (0x2000, 0x206F),  # General Punctuation
+        (0x20A0, 0x20CF),  # Currency Symbols
+        (0x2100, 0x214F),  # Letterlike Symbols
+        (0x2190, 0x21FF),  # Arrows
+        (0x2200, 0x22FF),  # Mathematical Operators
+        (0x25A0, 0x25FF),  # Geometric Shapes
+        (0x2600, 0x26FF),  # Misc Symbols
+        (0x27C0, 0x27EF),  # Misc Mathematical Symbols
+        (0x00D7, 0x00D7),  # Multiplication sign
+        (0x00F7, 0x00F7),  # Division sign
+    ]
+
+    def is_allowed(char: str) -> bool:
+        cp = ord(char)
+        for lo, hi in ALLOWED_RANGES:
+            if lo <= cp <= hi:
+                return True
+        # Always allow whitespace and newlines
+        if unicodedata.category(char) in ('Zs', 'Cc'):
+            return True
+        return False
+
+    cleaned = "".join(c if is_allowed(c) else ' ' for c in text)
+    # Collapse multiple spaces created by removals
+    import re as _re
+    cleaned = _re.sub(r'  +', ' ', cleaned).strip()
+    return cleaned
+
+
 def general_chat_node(state: AgentState):
     """Handles general conversation. Short and helpful."""
     try:
@@ -464,7 +517,7 @@ def general_chat_node(state: AgentState):
             "- Yanıtın maksimum 2-3 cümle olsun.\n"
             "- Emoji kullanma.\n"
             "- Kullanıcı bir ürün veya tavsiye istediğinde sana yardımcı olabileceğini belirt.\n"
-            "- Türkçe konuş."
+            "- ZORUNLU: Sadece ve yalnızca Türkçe yaz. Kesinlikle başka bir dil veya karakter seti (Çince, Japonca, Arapça vb.) kullanma."
         )
 
         messages_payload = [{"role": "system", "content": system_prompt}]
@@ -472,16 +525,19 @@ def general_chat_node(state: AgentState):
             role = "user" if msg.get("role") == "user" else "assistant"
             messages_payload.append({"role": role, "content": msg.get("content")})
 
+        llm_client, model_name = get_llm_client_and_model()
+        temp = AI_CONFIG.get("temperature", 0.7)
+        max_tok = AI_CONFIG.get("max_tokens", 250)
         def make_call():
-            return client.chat.completions.create(
-                model=get_clean_model_name(),
+            return llm_client.chat.completions.create(
+                model=model_name,
                 messages=messages_payload,
-                max_tokens=250,
-                temperature=0.7
+                max_tokens=max_tok,
+                temperature=temp
             )
 
         response = retry_groq_call(make_call)
-        content = response.choices[0].message.content
+        content = sanitize_response(response.choices[0].message.content or "")
 
         new_messages = state.messages.copy()
         new_messages.append({"role": "assistant", "content": content})
@@ -609,15 +665,19 @@ def vector_rag_node(state: AgentState):
 
         if is_product_inquiry:
             system_prompt = (
-                "Sen Beautrics uzman kozmetik ve cilt bakım danışmanısın. "
+                "Sen Beautrics uzman güzellik, kozmetik ve bakım danışmanısın. "
                 "Kullanıcı belirli bir ürün hakkında detaylı bilgi ve profiline uygunluk soruyor.\n\n"
-                "KURALLAR:\n"
-                "1. Ürünün kullanıcının cilt/saç tipi ve cilt endişeleriyle neden uyumlu olduğunu açıkla.\n"
-                "2. Ürünün ana faydalarını ve nasıl/ne zaman kullanılması gerektiğini (örneğin akşam temizlik sonrası, rutinin son adımı olarak) belirt.\n"
+                "KATI KURALLAR:\n"
+                "1. ÜRÜN KATEGORİSİNE UYGUN MANTIK KULLAN:\n"
+                "   - Makyaj / Renkli Kozmetik (Ruj, Maskara, Oje, Allık, Göz Kalemi vb.): Ürünün renk kalıcılığına, dokusuna, dudak/göz kullanımına ve makyajdaki yerine odaklan. Asla 'dermatolog' veya 'akne/cilt bakımı problemleri' gibi alakasız cilt bakımı uyarıları ekleme!\n"
+                "   - Cilt Bakımı (Krem, Serum, Temizleyici, Güneş Kremi vb.): Ürünün kullanıcının cilt tipi ve cilt endişelerine (leke, akne, kuruluk vb.) uygunluğunu açıkla.\n"
+                "   - Saç Bakımı (Şampuan, Saç Kremi, Saç Serumu vb.): Saç tipine uygunluğuna ve saç sağlığına katkısına odaklan.\n"
+                "2. Ürünün ana faydalarını ve nasıl/ne zaman kullanılması gerektiğini anlaşılır bir dille belirt.\n"
                 "3. En uygun fiyat ve mağaza bilgisinden kısaca bahset.\n"
-                "4. Eğer ürün STOK DIŞI olarak işaretlenmişse, bunu asla 'en uygun seçenek' diye sunma; bunun yerine stokta olan bir alternatif öner ya da stok dışı olduğunu açıkça belirt.\n"
-                "5. Emoji kullanma. Samimi, uzman ve yardımsever bir dil kullan.\n"
-                "6. Yanıtı maksimum 3-4 öz ve doyurucu cümle ile ver.\n\n"
+                "4. DİL BİLGİSİ VE DİL UYUMU: Kusursuz, akıcı Türkçe kullan. Bozuk kelimeler ('akne v nteri' vb.) kesinlikle yazma.\n"
+                "5. Emoji kullanma. Samimi, uzman ve son derece kaliteli bir dil kullan.\n"
+                "6. Yanıtı maksimum 3-4 net ve doyurucu cümle ile tamamla.\n"
+                "7. ZORUNLU: Sadece ve yalnızca Türkçe yaz. Kesinlikle yabancı kelime kullanma.\n\n"
                 f"KULLANICI PROFİLİ:\n{profile_summary}\n\n"
                 f"ÜRÜN LİSTESİ VE DETAYLARI:\n{product_context}"
             )
@@ -631,7 +691,8 @@ def vector_rag_node(state: AgentState):
                 "3. En ucuz seçeneğe veya kullanıcının aradığı kritere kısaca değinebilirsin.\n"
                 "4. Eğer ürün listesinde STOK DIŞI olarak işaretlenmiş bir ürün varsa, onu asla 'en uygun seçenek' ya da öneri olarak sunma; sadece stokta olan ürünlere odaklan.\n"
                 "5. Emoji kullanma.\n"
-                "6. En fazla 40 kelime kullan.\n\n"
+                "6. En fazla 40 kelime kullan.\n"
+                "7. ZORUNLU: Sadece ve yalnızca Türkçe yaz. Kesinlikle başka bir dil veya karakter seti (Çince, Japonca, Arapça, İspanyolca vb.) kullanma.\n\n"
                 f"KULLANICI PROFİLİ:\n{profile_summary}\n\n"
                 f"ÜRÜN LİSTESİ:\n{product_context}"
             )
@@ -647,17 +708,19 @@ def vector_rag_node(state: AgentState):
             role = "user" if msg.get("role") == "user" else "assistant"
             messages_payload.append({"role": role, "content": msg.get("content", "")})
 
+        llm_client, model_name = get_llm_client_and_model()
+        temp = 0.2 if is_product_inquiry else AI_CONFIG.get("temperature", 0.3)
+        max_tok = AI_CONFIG.get("max_tokens", 400)
         def make_call():
-            return client.chat.completions.create(
-                model=get_clean_model_name(AI_CONFIG.get("active_model")),
+            return llm_client.chat.completions.create(
+                model=model_name,
                 messages=messages_payload,
-                max_tokens=AI_CONFIG.get("max_tokens", 400),
-                temperature=AI_CONFIG.get("temperature", 0.7),
+                max_tokens=max_tok,
+                temperature=temp,
             )
 
         chat_response = retry_groq_call(make_call)
-        content = chat_response.choices[0].message.content or ""
-        content = content.strip()
+        content = sanitize_response(chat_response.choices[0].message.content or "")
 
         if not content:
             print("Groq returned empty content. Using product fallback.")
@@ -711,9 +774,10 @@ def alternative_rag_node(state: AgentState):
                     "Ürün adı bulamazsan sadece 'YOK' yaz.\n\n"
                     f"Mesaj: {last_msg}"
                 )
+                llm_client, model_name = get_llm_client_and_model()
                 def make_call():
-                    return client.chat.completions.create(
-                        model=get_clean_model_name(),
+                    return llm_client.chat.completions.create(
+                        model=model_name,
                         messages=[{"role": "user", "content": prompt}],
                         max_tokens=50,
                         temperature=0.0,
@@ -797,7 +861,8 @@ def alternative_rag_node(state: AgentState):
             "1. Kullanıcıya özel kısa, nazik ve alternatifleri özetleyen 1-2 cümlelik bir giriş yaz.\n"
             "2. Ürün isimlerini veya linklerini metin içinde tekrar liste olarak yazma (ürünler alttaki interaktif kartta gösterilecek).\n"
             "3. Emoji kullanma.\n"
-            "4. En fazla 40 kelime kullan.\n\n"
+            "4. En fazla 40 kelime kullan.\n"
+            "5. ZORUNLU: Sadece ve yalnızca Türkçe yaz. Kesinlikle başka bir dil veya karakter seti (Çince, Japonca, Arapça, İspanyolca vb.) kullanma.\n\n"
             f"KULLANICI PROFİLİ:\n{profile_summary}\n\n"
             f"REFERANS ÜRÜN: {ref_product_name}\n\n"
             f"ALTERNATİF ÜRÜN LİSTESİ:\n{product_context}"
@@ -809,17 +874,19 @@ def alternative_rag_node(state: AgentState):
             role = "user" if msg.get("role") == "user" else "assistant"
             messages_payload.append({"role": role, "content": msg.get("content", "")})
 
+        llm_client, model_name = get_llm_client_and_model()
+        temp = AI_CONFIG.get("temperature", 0.7)
+        max_tok = AI_CONFIG.get("max_tokens", 400)
         def make_call():
-            return client.chat.completions.create(
-                model=get_clean_model_name(AI_CONFIG.get("active_model")),
+            return llm_client.chat.completions.create(
+                model=model_name,
                 messages=messages_payload,
-                max_tokens=400,
-                temperature=0.7,
+                max_tokens=max_tok,
+                temperature=temp,
             )
 
         chat_response = retry_groq_call(make_call)
-        content = chat_response.choices[0].message.content or ""
-        content = content.strip()
+        content = sanitize_response(chat_response.choices[0].message.content or "")
 
         if not content:
             content = build_product_response(alternatives)
@@ -858,24 +925,28 @@ workflow.set_entry_point("fetch_profile")
 
 def route_after_profile(state: AgentState):
     """Routes to the correct node based on profile state and user intent."""
-    # 1. Profile still incomplete -> ask for missing fields
-    if state.missing_fields:
-        return "onboarding_fallback"
-
     # Determine user intent first
     last_msg = get_last_user_message(state.messages)
     intent = determine_intent(last_msg) if last_msg else "general"
-    print(f"Intent decision: {intent} | Message: {last_msg}")
+    print(f"Intent decision: {intent} | Message: {last_msg.encode('ascii', 'replace').decode('ascii')}")
 
-    # 2. If user asked for product recommendations / alternatives / store comparison, answer their query immediately!
+    # 1. If user asked for product recommendations / alternatives / store comparison -> RAG search!
     if intent in ("alternative", "store_compare"):
         return "alternative_rag"
     elif intent == "recommendation":
         return "vector_rag"
 
+    # 2. General conversation / greetings ("merhaba", "selam", "günaydın") -> general chat node!
+    if intent == "general":
+        return "general_chat"
+
     # 3. If user's message was specifically updating their profile without asking for a product, confirm profile
     if state.profile_just_completed:
         return "profile_confirmed"
+
+    # 4. Fallback for unclassified queries with missing fields
+    if state.missing_fields:
+        return "onboarding_fallback"
 
     return "general_chat"
 

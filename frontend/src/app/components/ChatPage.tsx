@@ -149,7 +149,10 @@ function renderInlineMarkdown(text: string): React.ReactNode {
 function FormattedMessageContent({ content }: { content: string }) {
   if (!content) return null;
 
-  const lines = content.split('\n');
+  // Clean out internal ID tags like [ID:81] before displaying in UI
+  const displayContent = content.replace(/\[ID:\d+\]\s*/gi, '');
+
+  const lines = displayContent.split('\n');
   const elements: React.ReactNode[] = [];
 
   let i = 0;
@@ -513,7 +516,7 @@ function ProductListCard({ products, cartItemIds, onAddToCart, showComparison = 
 
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
                   <div style={{ fontSize: 16, fontWeight: 700, color: '#1A1A1A' }}>
-                    {cheapest.price > 0 ? `₺${cheapest.price}` : 'Stok Dışı'}
+                    {cheapest.price > 0 ? `₺${Number(cheapest.price).toFixed(2)}` : 'Stok Dışı'}
                   </div>
                   {cheapest.price > 0 && (
                     <button
@@ -565,7 +568,7 @@ function ProductListCard({ products, cartItemIds, onAddToCart, showComparison = 
                     {store}
                   </div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: isBest ? storeColor.color : '#1A1A1A' }}>
-                    ₺{total}
+                    ₺{Number(total).toFixed(2)}
                   </div>
                   {isBest && (
                     <div style={{ fontSize: 9, color: storeColor.color, fontWeight: 600, marginTop: 2 }}>EN UCUZ</div>
@@ -641,15 +644,18 @@ export function ChatPage({
   // Initial Load: Check profile and greeting if session has no messages
   useEffect(() => {
     async function initChat() {
-      if (messages.length > 0) return; // Keep existing messages if already present
-      
+      const hasUserMsg = messages.some(m => m.role === 'user');
+      const hasOnboardingMsg = messages.some(m => m.isOnboarding);
+
       setIsLoading(true);
       try {
         const profile = await getUserProfile(userId);
-        const hasCompletedLocal = localStorage.getItem("beautrics_onboarding_completed") === "true";
-        const hasCompletedProfile = Boolean(profile && profile.onboarding_completed);
-        const hasFullProfile = Boolean(profile?.skin_type && profile?.hair_type);
-        const isCompleted = hasCompletedLocal || hasCompletedProfile || hasFullProfile;
+        const isCompleted = Boolean(
+          (profile?.skin_type && profile.skin_type.trim() !== "" && profile.skin_type.toLowerCase() !== "belirtilmedi") ||
+          (profile?.hair_type && profile.hair_type.trim() !== "" && profile.hair_type.toLowerCase() !== "belirtilmedi") ||
+          profile?.onboarding_completed ||
+          localStorage.getItem("beautrics_onboarding_completed") === "true"
+        );
         
         const welcomeMessage: Message = {
           id: 'welcome',
@@ -658,56 +664,92 @@ export function ChatPage({
         };
 
         if (!isCompleted) {
-          // Profile is missing, ask for onboarding
-          setMessages([
-            welcomeMessage,
-            {
-              id: 'onboarding-ask',
-              role: 'assistant',
-              content: 'Sana en doğru ürünleri ve bakım önerilerini sunabilmem için öncelikle cilt ve saç yapını öğrenmem gerekiyor. Lütfen aşağıdaki sihirbazı tamamla: 🌱',
-              isOnboarding: true
-            }
-          ]);
+          // Profile is missing, ask for onboarding if not already asked or answered
+          if (!hasUserMsg && !hasOnboardingMsg) {
+            setMessages([
+              welcomeMessage,
+              {
+                id: 'onboarding-ask',
+                role: 'assistant',
+                content: 'Sana en doğru ürünleri ve bakım önerilerini sunabilmem için öncelikle cilt ve saç yapını öğrenmem gerekiyor. Lütfen aşağıdaki sihirbazı tamamla: 🌱',
+                isOnboarding: true
+              }
+            ]);
+          }
         } else {
-          // Profile complete, greet with current profile context
-          setMessages([
-            welcomeMessage,
-            {
-              id: 'profile-greet',
-              role: 'assistant',
-              content: `Önerilerimi profil bilgilerinize göre sizin için özelleştiriyorum. Özel bir ihtiyacınız veya aradığınız belirli bir ürün varsa bana yazabilirsiniz.`
-            }
-          ]);
+          // Profile complete, greet with current profile context if session is fresh
+          if (messages.length === 0 || messages.every(m => m.isOnboarding)) {
+            setMessages([
+              welcomeMessage,
+              {
+                id: 'profile-greet',
+                role: 'assistant',
+                content: `Önerilerimi profil bilgilerinize göre sizin için özelleştiriyorum. Özel bir ihtiyacınız veya aradığınız belirli bir ürün varsa bana yazabilirsiniz.`
+              }
+            ]);
+          }
         }
       } catch (err) {
         console.error("Chat init error:", err);
-        setMessages([
-          {
-            id: 'err-welcome',
-            role: 'assistant',
-            content: 'Merhaba! Cilt tipinizi belirterek veya soru sorarak ürün aramaya başlayabilirsiniz! 🌱'
-          }
-        ]);
+        if (messages.length === 0) {
+          setMessages([
+            {
+              id: 'welcome-err',
+              role: 'assistant',
+              content: 'Merhaba! 👋 Ben Beautrics Kişisel Bakım Asistanıyım. Sana özel bir cilt bakım rutini oluşturmak ve 4 farklı mağazada fiyatları karşılaştırmak için buradayım.'
+            },
+            {
+              id: 'profile-greet-err',
+              role: 'assistant',
+              content: 'Önerilerimi profil bilgilerinize göre sizin için özelleştiriyorum. Özel bir ihtiyacınız veya aradığınız belirli bir ürün varsa bana yazabilirsiniz.'
+            }
+          ]);
+        }
       } finally {
         setIsLoading(false);
       }
     }
 
     initChat();
-  }, [userId]);
+  }, [userId, sessionId, storageKey]);
 
   const handleResetChat = async () => {
     setIsLoading(true);
     try {
       await clearSession(userId, sessionId);
       localStorage.removeItem(storageKey);
+      
+      const profile = await getUserProfile(userId).catch(() => null);
+      const isCompleted = Boolean(
+        (profile?.skin_type && profile.skin_type.trim() !== "" && profile.skin_type.toLowerCase() !== "belirtilmedi") ||
+        (profile?.hair_type && profile.hair_type.trim() !== "" && profile.hair_type.toLowerCase() !== "belirtilmedi") ||
+        profile?.onboarding_completed ||
+        localStorage.getItem("beautrics_onboarding_completed") === "true"
+      );
+
       const resetWelcome: Message[] = [
         {
           id: `welcome-${Date.now()}`,
           role: 'assistant',
-          content: 'Sohbet geçmişi ve ürün hafızası temizlendi. 👋 Nasıl yardımcı olabilirim?'
+          content: 'Sohbet geçmişi ve ürün hafızası temizlendi. 👋'
         }
       ];
+
+      if (!isCompleted) {
+        resetWelcome.push({
+          id: `onboarding-ask-${Date.now()}`,
+          role: 'assistant',
+          content: 'Sana en doğru ürünleri ve bakım önerilerini sunabilmem için öncelikle cilt ve saç yapını öğrenmem gerekiyor. Lütfen aşağıdaki sihirbazı tamamla: 🌱',
+          isOnboarding: true
+        });
+      } else {
+        resetWelcome.push({
+          id: `profile-greet-${Date.now()}`,
+          role: 'assistant',
+          content: 'Önerilerimi profil bilgilerinize göre sizin için özelleştiriyorum. Özel bir ihtiyacınız veya aradığınız belirli bir ürün varsa bana yazabilirsiniz.'
+        });
+      }
+
       setMessages(resetWelcome);
       localStorage.setItem(storageKey, JSON.stringify(resetWelcome));
     } catch (err) {
@@ -778,12 +820,25 @@ export function ChatPage({
       }, 25);
     } catch (err) {
       console.error("Error sending message:", err);
+      const textLower = text.toLowerCase();
+      const matchedLocal = (products || []).filter(p => {
+        const titleLower = (p.title || "").toLowerCase();
+        const categoryLower = (p.category || "").toLowerCase();
+        const brandLower = (p.brand || "").toLowerCase();
+        return textLower.split(" ").some(word => word.length > 2 && (titleLower.includes(word) || categoryLower.includes(word) || brandLower.includes(word)));
+      }).slice(0, 3);
+
+      const fallbackText = matchedLocal.length > 0
+        ? `Aradığınız kriterlere en uygun ürünleri sizin için aşağıda listeledim. Mağaza ve fiyat detaylarını inceleyebilirsiniz: 🌱`
+        : `Sorunuz alındı. Sunucu bağlantısı yeniden kuruluyor, lütfen sorunuzu tekrar iletin.`;
+
       setMessages(prev => [
         ...prev,
         {
-          id: `msg-err-${Date.now()}`,
+          id: `msg-fallback-${Date.now()}`,
           role: 'assistant',
-          content: 'Üzgünüm, şu an yanıt oluşturulamadı. Lütfen tekrar deneyin.'
+          content: fallbackText,
+          products: matchedLocal,
         }
       ]);
     } finally {

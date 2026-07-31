@@ -6,7 +6,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 sys.path.insert(0, os.path.abspath("."))
 from fastapi.testclient import TestClient
-from test.main import app
+from main import app
 
 client = TestClient(app)
 user_id = "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
