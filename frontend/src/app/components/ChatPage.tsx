@@ -349,7 +349,7 @@ function OnboardingCard({
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {currentStep.items.map((item) => {
-            const isActive = currentStep.isMulti 
+            const isActive = currentStep.isMulti
               ? (currentStep.selected as string[]).includes(item)
               : currentStep.selected === item;
             return (
@@ -435,7 +435,7 @@ function ProductListCard({ products, cartItemIds, onAddToCart, showComparison = 
   });
 
   const activeStores = Object.entries(storeTotals).filter(([, total]) => total > 0);
-  const minStoreEntry = activeStores.length > 0 
+  const minStoreEntry = activeStores.length > 0
     ? activeStores.reduce((min, curr) => curr[1] < min[1] ? curr : min)
     : null;
 
@@ -565,7 +565,7 @@ function ProductListCard({ products, cartItemIds, onAddToCart, showComparison = 
                     {store}
                   </div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: isBest ? storeColor.color : '#1A1A1A' }}>
-                    ₺{total}
+                    ₺{Math.round(total * 100) / 100}
                   </div>
                   {isBest && (
                     <div style={{ fontSize: 9, color: storeColor.color, fontWeight: 600, marginTop: 2 }}>EN UCUZ</div>
@@ -642,7 +642,7 @@ export function ChatPage({
   useEffect(() => {
     async function initChat() {
       if (messages.length > 0) return; // Keep existing messages if already present
-      
+
       setIsLoading(true);
       try {
         const profile = await getUserProfile(userId);
@@ -650,7 +650,7 @@ export function ChatPage({
         const hasCompletedProfile = Boolean(profile && profile.onboarding_completed);
         const hasFullProfile = Boolean(profile?.skin_type && profile?.hair_type);
         const isCompleted = hasCompletedLocal || hasCompletedProfile || hasFullProfile;
-        
+
         const welcomeMessage: Message = {
           id: 'welcome',
           role: 'assistant',
@@ -803,7 +803,7 @@ export function ChatPage({
     localStorage.setItem("beautrics_onboarding_completed", "true");
     const activeUserId = getUserId();
     const hairTypeStr = hairTypes.join(', ');
-    
+
     try {
       if (user?.id) {
         await saveUserProfile(user.id, {
@@ -836,7 +836,7 @@ export function ChatPage({
     const hairText = hairTypes.length > 0 ? hairTypes.join(', ') : 'Belirtilmedi';
     const concernsText = selectedConcerns.length > 0 ? `, Cilt Sorunlarım: ${selectedConcerns.join(', ')}` : '';
     const onboardingText = `Cildim ${skinType}, Saçım ${hairText}${concernsText}`;
-    
+
     // Hide onboarding prompt from the last welcome message and proceed to send chat message
     setMessages(prev => prev.map(m => m.isOnboarding ? { ...m, isOnboarding: false } : m));
     await handleSendMessage(onboardingText);
@@ -915,10 +915,10 @@ export function ChatPage({
         {messages.map((m, msgIdx) => {
           const isUser = m.role === 'user';
           return (
-            <div 
-              key={m.id} 
-              style={{ 
-                display: 'flex', 
+            <div
+              key={m.id}
+              style={{
+                display: 'flex',
                 justifyContent: isUser ? 'flex-end' : 'flex-start',
                 gap: 10,
                 alignItems: 'flex-start'
@@ -948,17 +948,17 @@ export function ChatPage({
                 </div>
 
                 {m.isOnboarding && (
-                  <OnboardingCard 
-                    onSave={handleSaveOnboarding} 
-                    onSkip={handleSkipOnboarding} 
+                  <OnboardingCard
+                    onSave={handleSaveOnboarding}
+                    onSkip={handleSkipOnboarding}
                   />
                 )}
 
                 {m.products && m.products.length > 0 && (
-                  <ProductListCard 
-                    products={m.products} 
-                    cartItemIds={cartItemIds} 
-                    onAddToCart={onAddToCart} 
+                  <ProductListCard
+                    products={m.products}
+                    cartItemIds={cartItemIds}
+                    onAddToCart={onAddToCart}
                     showComparison={msgIdx === messages.length - 1 || messages.slice(msgIdx + 1).every(nm => !nm.products || nm.products.length === 0)}
                   />
                 )}

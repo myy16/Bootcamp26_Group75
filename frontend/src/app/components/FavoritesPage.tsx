@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Bell,
   X,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { PRODUCTS, STORE_COLORS, Product } from "../data";
 import { User } from "@supabase/supabase-js";
+import { getUserAlertProductIds, createAlarm, removeAlarm } from "../alarmApi";
 
 interface FavoritesPageProps {
   products?: Product[];
@@ -134,7 +135,7 @@ function MiniPriceChart({
         })}
       </svg>
 
-      
+
     </div>
   );
 }
@@ -153,6 +154,24 @@ export function FavoritesPage({
   const [notifications, setNotifications] = useState<Set<string>>(
     new Set(),
   );
+  const [alarmLoadingIds, setAlarmLoadingIds] = useState<Set<string>>(
+    new Set(),
+  );
+
+  // Sayfa açıldığında kullanıcının Supabase'deki aktif alarmlarını çek
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+
+    getUserAlertProductIds(user.id).then((ids) => {
+      if (!cancelled) setNotifications(ids);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const source =
     products && products.length > 0 ? products : PRODUCTS;
@@ -161,17 +180,54 @@ export function FavoritesPage({
     favoriteIds.has(product.id),
   );
 
-  const toggleNotification = (id: string) => {
-    setNotifications((previousNotifications) => {
-      const updatedNotifications = new Set(previousNotifications);
+  const toggleNotification = async (id: string) => {
+    if (!user) return;
 
-      if (updatedNotifications.has(id)) {
-        updatedNotifications.delete(id);
+    // Zaten bu ürün için istek işleniyorsa tekrar tıklamayı yoksay
+    if (alarmLoadingIds.has(id)) return;
+
+    const alreadyActive = notifications.has(id);
+    const numericProductId = Number(id);
+
+    if (Number.isNaN(numericProductId)) {
+      console.error("Ürün id'si sayıya çevrilemedi:", id);
+      return;
+    }
+
+    setAlarmLoadingIds((prev) => new Set(prev).add(id));
+
+    // İyimser (optimistic) UI güncellemesi
+    setNotifications((prev) => {
+      const updated = new Set(prev);
+      if (alreadyActive) {
+        updated.delete(id);
       } else {
-        updatedNotifications.add(id);
+        updated.add(id);
       }
+      return updated;
+    });
 
-      return updatedNotifications;
+    const success = alreadyActive
+      ? await removeAlarm(user.id, numericProductId, "back_in_stock")
+      : await createAlarm(user.id, numericProductId, "back_in_stock");
+
+    // İstek başarısız olduysa UI'ı eski haline geri al
+    if (!success) {
+      setNotifications((prev) => {
+        const reverted = new Set(prev);
+        if (alreadyActive) {
+          reverted.add(id);
+        } else {
+          reverted.delete(id);
+        }
+        return reverted;
+      });
+    }
+
+    setAlarmLoadingIds((prev) => {
+      const updated = new Set(prev);
+      updated.delete(id);
+      return updated;
     });
   };
 
@@ -267,6 +323,7 @@ export function FavoritesPage({
               );
 
               const hasNotification = notifications.has(product.id);
+              const isAlarmLoading = alarmLoadingIds.has(product.id);
               const isInCart = cartItemIds.has(product.id);
 
               const firstHistoryPrice =
@@ -283,6 +340,10 @@ export function FavoritesPage({
                   ? firstHistoryPrice - currentStorePrice
                   : 0;
 
+              // Şu an hiçbir mağazada satılmıyor -> stok alarmı için
+              // en anlamlı durum bu
+              const isOutOfStock = !cheapestStore;
+
               return (
                 <article
                   key={product.id}
@@ -295,7 +356,7 @@ export function FavoritesPage({
                   >
                     <X size={15} />
                   </button>
-                  
+
                   <div className="flex p-5">
                     <div className="flex h-[150px] w-[150px] shrink-0 items-center justify-center overflow-hidden rounded-xl">
                       <img
@@ -378,7 +439,7 @@ export function FavoritesPage({
                       </div>
 
                       <div className="flex items-center justify-between">
-                        
+
                         <button
                           onClick={() => onOpenChart(product)}
                           type="button"
@@ -387,7 +448,7 @@ export function FavoritesPage({
                           Analizi Gör
                           <ArrowRight size={13} />
                         </button>
-                      </div>                    
+                      </div>
                     </div>
                   )}
 
@@ -417,13 +478,16 @@ export function FavoritesPage({
                     </button>
 
                     <button
-                      onClick={() => toggleNotification?.(product.id)}
+                      onClick={() => toggleNotification(product.id)}
+                      disabled={isAlarmLoading}
                       title={
                         hasNotification
-                          ? "Alarm kurulu"
-                          : "Fiyat alarmı kur"
+                          ? "Alarm kurulu — stok/fiyat gelince mail atılacak"
+                          : isOutOfStock
+                            ? "Stoğa girince haber ver"
+                            : "Fiyat alarmı kur"
                       }
-                      className={`flex items-center justify-center gap-1 py-3 px-2.5 rounded-xl border-[1.5px] text-xs font-medium transition-colors cursor-pointer ${
+                      className={`flex items-center justify-center gap-1 py-3 px-2.5 rounded-xl border-[1.5px] text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 ${
                         hasNotification
                           ? "border-[#2D6A4F] bg-[#EBF5F0] text-[#2D6A4F]"
                           : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
