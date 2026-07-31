@@ -9,7 +9,7 @@ import requests
 # n8n'deki aynı webhook URL'sini kullanıyoruz
 webhook_url = "http://localhost:5678/webhook/watsons-data"
 
-urls=[
+urls = [
     "https://www.gratis.com/anyong-b-61144",
     "https://www.gratis.com/beauty-of-joseon-b-61176",
     "https://www.gratis.com/bic-b-60706?categories=50501,5050104",
@@ -25,9 +25,10 @@ urls=[
 ]
 
 options = webdriver.ChromeOptions()
-#options.add_argument("--headless=new") # n8n/sunucu uyumu için headless
+# options.add_argument("--headless=new") # n8n/sunucu uyumu için headless
 options.add_argument("--start-maximized")
-options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+options.add_argument(
+    "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 options.add_argument("--disable-blink-features=AutomationControlled")
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
@@ -40,24 +41,25 @@ try:
         # Kategori ismini URL'den çekiyoruz
         marka_adi = base_url.split('/')[-1].split('-b-')[0].upper()
         print(f"\n🚀 Şu an taranan marka: {marka_adi}")
-        
+
         current_page = 1
         while True:
             # Rossmann mantığı: URL'ye sayfa parametresini ekle
             baglac = "&" if "?" in base_url else "?"
             target_url = f"{base_url}{baglac}page={current_page}"
-            
+
             print(f"🔎 Sayfa {current_page} yükleniyor...")
             driver.get(target_url)
-            time.sleep(5) # Gratis'in yüklenmesi için Rossmann'dan biraz daha fazla süre verelim
-            
+            time.sleep(5)  # Gratis'in yüklenmesi için Rossmann'dan biraz daha fazla süre verelim
+
             # Ürünlerin yüklenmesini tetiklemek için bir kez aşağı kaydır
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
 
             # Gratis ürün kartlarını bul
-            urunler = driver.find_elements(By.CSS_SELECTOR, "div.relative.flex.flex-col.justify-between.border.rounded-xl")
-            
+            urunler = driver.find_elements(By.CSS_SELECTOR,
+                                           "div.relative.flex.flex-col.justify-between.border.rounded-xl")
+
             # Eğer sayfada ürün yoksa veya 30. sayfayı geçtiysek (güvenlik sınırı) döngüden çık
             if not urunler or current_page > 30:
                 print(f"🏁 {marka_adi} markası için sayfalar bitti.")
@@ -67,25 +69,40 @@ try:
             for urun in urunler:
                 try:
                     isim = urun.find_element(By.CSS_SELECTOR, "h5").text.strip()
-                    
+
                     if isim and isim not in cekilen_isimler:
                         # Fiyat çekme işlemleri
                         try:
                             # Gratis fiyat yapısı: Ana fiyat + Kuruş (sup etiketi içinde)
-                            indirimli_ana = urun.find_element(By.CSS_SELECTOR, "span.text-primary-850 span.text-\[16px\]").text.strip()
-                            indirimli_kurus = urun.find_element(By.CSS_SELECTOR, "span.text-primary-850 sup").text.strip()
+                            indirimli_ana = urun.find_element(By.CSS_SELECTOR,
+                                                              "span.text-primary-850 span.text-\[16px\]").text.strip()
+                            indirimli_kurus = urun.find_element(By.CSS_SELECTOR,
+                                                                "span.text-primary-850 sup").text.strip()
                             indirimli_kurus = indirimli_kurus.replace("TL", "").strip()
-                            
+
                             # Sayısal formata çevirme (Örn: 150,50 -> 150.50)
                             fiyat_str = f"{indirimli_ana}.{indirimli_kurus}".replace(" ", "").replace(",", "")
                             guncel_fiyat = float(fiyat_str)
                         except:
                             guncel_fiyat = 0.0
 
+                        # --- STOK DURUMU KONTROLÜ ---
+                        # Gratis'te tükenen ürünlerde genelde "Stokta Yok" / "Tükendi" etiketi
+                        # veya "Sepete Ekle" butonu yerine farklı bir buton çıkar.
+                        try:
+                            tukendi_etiketi = urun.find_elements(
+                                By.XPATH,
+                                ".//*[contains(text(), 'Stokta Yok') or contains(text(), 'Tükendi') or contains(text(), 'stokta yok')]"
+                            )
+                            stokta_var = len(tukendi_etiketi) == 0
+                        except:
+                            stokta_var = True  # emin değilsek varsayılan olarak stokta kabul et
+
                         urun_listesi.append({
                             "store_product_name": isim,
                             "price": guncel_fiyat,
-                            "m_id": 2 # Gratis ID
+                            "m_id": 2,  # Gratis ID
+                            "in_stock": stokta_var
                         })
                         cekilen_isimler.add(isim)
                         found_new_in_page = True
@@ -94,12 +111,12 @@ try:
 
             print(f"✅ Sayfa {current_page} tamamlandı. Toplam benzersiz ürün: {len(cekilen_isimler)}")
 
-            # Eğer bu sayfada daha önce çekmediğimiz HİÇ yeni ürün bulamadıysak, 
+            # Eğer bu sayfada daha önce çekmediğimiz HİÇ yeni ürün bulamadıysak,
             # muhtemelen site bizi başa döndürmüştür veya ürünler bitmiştir.
             if not found_new_in_page:
                 print(f"🛑 Yeni ürün bulunamadı, {marka_adi} taranması sonlandırılıyor.")
                 break
-                
+
             current_page += 1
 
     # --- n8n WEBHOOK GÖNDERİMİ ---

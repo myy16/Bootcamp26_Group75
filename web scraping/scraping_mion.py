@@ -8,7 +8,7 @@ import requests
 
 webhook_url = "http://localhost:5678/webhook/watsons-data"
 
-urls=[
+urls = [
     "https://www.migros.com.tr/bic-b-402/kisisel-bakim-kozmetik-saglik-c-8",
     "https://www.migros.com.tr/bioblas-b-43f",
     "https://www.migros.com.tr/mion/garnier-b-456/makyaj-c-11db1",
@@ -23,10 +23,10 @@ urls=[
 options = webdriver.ChromeOptions()
 options.add_argument("--start-maximized")
 options.add_argument("--disable-blink-features=AutomationControlled")
-options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+options.add_argument(
+    "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-
 
 urun_listesi = []
 
@@ -34,7 +34,7 @@ try:
     for base_url in urls:
         print(f"Link taranıyor: {base_url[:60]}...")
         driver.get(base_url)
-        time.sleep(6) 
+        time.sleep(6)
 
         urun_kartlari = driver.find_elements(By.CSS_SELECTOR, "fe-product-card")
 
@@ -48,18 +48,31 @@ try:
                         fiyat = kart.find_element(By.CSS_SELECTOR, "fe-product-price .price").text.strip()
                     except:
                         fiyat = "Fiyat Bilgisi Yok"
-                
+
                     temiz_fiyat = fiyat.replace("TL", "").replace("₺", "").replace(".", "").replace(",", ".").strip()
+
+                # --- STOK DURUMU KONTROLÜ ---
+                # Migros/Mion'da tükenen ürünlerde "Tükendi" / "Stokta Yok" etiketi
+                # veya "Sepete Ekle" butonu yerine "Ürün Tükendi" benzeri bir metin çıkar.
+                try:
+                    tukendi_etiketi = kart.find_elements(
+                        By.XPATH,
+                        ".//*[contains(text(), 'Tükendi') or contains(text(), 'Stokta Yok') or contains(text(), 'stokta yok')]"
+                    )
+                    stokta_var = len(tukendi_etiketi) == 0
+                except:
+                    stokta_var = True  # emin değilsek varsayılan olarak stokta kabul et
 
                 if isim:
                     urun_listesi.append({
-                        "store_product_name": isim, # Sütun isimlerini n8n'deki gibi yaptık
+                        "store_product_name": isim,  # Sütun isimlerini n8n'deki gibi yaptık
                         "price": float(temiz_fiyat),
-                        "m_id": 3
+                        "m_id": 3,
+                        "in_stock": stokta_var
                     })
             except Exception:
                 continue
-        
+
         print(f" Bu linkten {len(urun_kartlari)} kart tarandı. Toplam ürün: {len(urun_listesi)}")
 
     if urun_listesi:

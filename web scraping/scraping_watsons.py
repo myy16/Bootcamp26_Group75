@@ -5,14 +5,14 @@ from webdriver_manager.chrome import ChromeDriverManager
 import time
 import pandas as pd
 import requests
-import json # n8n için JSON desteği
-webhook_url = "http://localhost:5678/webhook/watsons-data"
+import json  # n8n için JSON desteği
 
+webhook_url = "http://localhost:5678/webhook/watsons-data"
 
 urls = [
     "https://www.watsons.com.tr/search/anyong",
     "https://www.watsons.com.tr/erkek-bakim/tiras/c/227?query=:most-relevant:masterBrandName:BIC",
-    "https://www.watsons.com.tr/search/bioablas?query=bioablas:most-relevant:masterBrandName:BIOBLAS", 
+    "https://www.watsons.com.tr/search/bioablas?query=bioablas:most-relevant:masterBrandName:BIOBLAS",
     "https://www.watsons.com.tr/flormar/b/3193?query=:numberOfReviews:subcategory:1016:subcategory:1005:subcategory:1012:subcategory:1020:subcategory:1002:subcategory:1001:subcategory:1010:subcategory:1011:subcategory:1013:subcategory:1008",
     "https://www.watsons.com.tr/garnier/b/2626?query=:numberOfReviews:subcategory:10001:subcategory:1092:subcategory:1041",
     "https://www.watsons.com.tr/hoito/b/3685",
@@ -30,37 +30,53 @@ options.add_argument("--disable-blink-features=AutomationControlled")
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 urun_listesi = []
-cekilen_isimler = set() 
+cekilen_isimler = set()
 
 try:
     for base_url in urls:
-        print(f"\n🚀 Yeni kategori taranıyor: {base_url.split('/')[-3] if 'search' not in base_url else 'Arama Results'}")
+        print(
+            f"\n🚀 Yeni kategori taranıyor: {base_url.split('/')[-3] if 'search' not in base_url else 'Arama Results'}")
         driver.get(base_url)
         sayfa_sayisi = 1
-        
+
         while True:
             print(f"📄 Sayfa {sayfa_sayisi} işleniyor...")
             time.sleep(5)
-            
+
             urunler = driver.find_elements(By.CSS_SELECTOR, "e2-product-tile")
-            yeni_urun_sayisi = 0 # Bu sayfada kaç tane "gerçekten yeni" ürün bulduk?
+            yeni_urun_sayisi = 0  # Bu sayfada kaç tane "gerçekten yeni" ürün bulduk?
 
             for kart in urunler:
                 try:
                     ad = kart.find_element(By.CSS_SELECTOR, "h3.product-list-item__name").text.strip()
-                    
+
                     if ad not in cekilen_isimler:
                         try:
                             fiyat_raw = kart.find_element(By.CSS_SELECTOR, "span.value").text.strip()
                         except:
                             fiyat_raw = kart.find_element(By.CSS_SELECTOR, "span.price__default-value").text.strip()
-                        
-                        temiz_fiyat = fiyat_raw.replace("TL", "").replace("₺", "").replace(".", "").replace(",", ".").strip()
-                        
+
+                        temiz_fiyat = fiyat_raw.replace("TL", "").replace("₺", "").replace(".", "").replace(",",
+                                                                                                            ".").strip()
+
+                        # --- STOK DURUMU KONTROLÜ ---
+                        # Watsons'ta tükenen ürünlerde "Tükendi" / "Stokta Yok" etiketi
+                        # veya "Sepete Ekle" butonu yerine "Haber Ver" benzeri bir buton çıkar.
+                        try:
+                            tukendi_etiketi = kart.find_elements(
+                                By.XPATH,
+                                ".//*[contains(text(), 'Tükendi') or contains(text(), 'Stokta Yok') "
+                                "or contains(text(), 'stokta yok') or contains(text(), 'Haber Ver')]"
+                            )
+                            stokta_var = len(tukendi_etiketi) == 0
+                        except:
+                            stokta_var = True  # emin değilsek varsayılan olarak stokta kabul et
+
                         urun_listesi.append({
-                            "store_product_name": ad, # Sütun isimlerini n8n'deki gibi yaptık
+                            "store_product_name": ad,  # Sütun isimlerini n8n'deki gibi yaptık
                             "price": float(temiz_fiyat),
-                            "m_id": 1 # Watsons
+                            "m_id": 1,  # Watsons
+                            "in_stock": stokta_var
                         })
                         cekilen_isimler.add(ad)
                         yeni_urun_sayisi += 1
@@ -85,7 +101,7 @@ try:
                 else:
                     driver.execute_script("arguments[0].click();", next_button)
                 sayfa_sayisi += 1
-                time.sleep(3) 
+                time.sleep(3)
             except:
                 print(" Sonraki sayfa butonu yok, diğer linke geçiliyor.")
                 break
