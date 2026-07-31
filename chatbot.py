@@ -38,6 +38,14 @@ openai_client = OpenAI(
     api_key=OPENAI_API_KEY
 ) if OPENAI_API_KEY else None
 
+# Dedicated embedding client: ALWAYS uses real OpenAI API (api.openai.com)
+# Groq does NOT support embeddings; OPENAI_BASE_URL may point to a proxy (e.g. Gemini),
+# so we explicitly set base_url to the canonical OpenAI endpoint here.
+embedding_client = OpenAI(
+    api_key=OPENAI_API_KEY,
+    base_url="https://api.openai.com/v1",
+) if OPENAI_API_KEY else None
+
 client = groq_client or openai_client
 
 # === Live Dynamic AI Configuration (Managed via Admin Panel) ===
@@ -583,12 +591,14 @@ def vector_rag_node(state: AgentState):
                     matched_products = [exact_p]
 
         # 1. Try vector similarity search (OpenAI Embeddings) first
-        if not matched_products:
+        # NOTE: text-embedding-3-small requires real OpenAI API — not Groq or any proxy.
+        # embedding_client is always set to api.openai.com/v1 explicitly.
+        if not matched_products and embedding_client:
             try:
                 profile_summary = f"Cilt Tipi: {profile.get('skin_type', 'normal')}, Saç Tipi: {profile.get('hair_type', 'normal')}"
                 search_query = f"{last_msg}. {profile_summary}"
 
-                emb_res = client.embeddings.create(
+                emb_res = embedding_client.embeddings.create(
                     model="text-embedding-3-small",
                     input=search_query
                 )
