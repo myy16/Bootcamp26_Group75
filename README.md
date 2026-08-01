@@ -248,32 +248,156 @@ Sprint 2 sonunda tamamlanmamış veya doğrulama süreci devam eden işler Sprin
 
 # Sprint 3
 
+Sprint 3’te temel hedefimiz, önceki sprintlerde geliştirilen kullanıcı akışlarını uçtan uca test etmek, tespit edilen sorunlara yönelik gerekli iyileştirmeleri gerçekleştirmek ve Beautrics’in kullanıcıya sunulan fonksiyonlarını daha kararlı hale getirmektir.
+
+Bu sprintte özellikle chatbot ve veritabanı testleri, marka ve ürün listeleme işlemleri, kişiselleştirilmiş ürün önerileri, ürün kartları, fiyat analizi, sepet, favoriler, kullanıcı profili ve kayıt süreçleri üzerinde çalışılmıştır. Bununla birlikte ürün kartlarındaki AI Sor özelliği tamamlanmış ve Beautrics’in görsel kimliğini desteklemek amacıyla logo çalışması gerçekleştirilmiştir.
+
+Sprint 3 kapsamında takip edilen ana çalışmalar:
+
+-Test İşlemleri ve Gerekli Geliştirmelerin Yapılması: Chatbot, veritabanı ve kullanıcı arayüzü fonksiyonlarının kontrol edilmesi; tespit edilen sorunlara yönelik gerekli düzenlemelerin gerçekleştirilmesi.
+
+-Frontend Çalışmaları: Beautrics için logo oluşturulması ve hazırlanan logonun uygulamaya eklenmesi.
+
+-Chatbot Üzerinden Profile Uygun Ürün Önerisi: Kullanıcının bakım ihtiyacını chatbot’a iletebilmesi, profiline uygun ürün önerisi alabilmesi ve ürün kartları üzerinden AI Sor özelliğine erişebilmesi.
+
+
+Test ve iyileştirme çalışmaları kapsamında aşağıdaki başlıklar ele alınmıştır:
+
+-Chatbot yanıtlarının ve bağlantı durumunun kontrol edilmesi
+
+-Veritabanı işlemlerinin test edilmesi
+
+-Markalar butonunun aktiflik durumunun kontrol edilmesi
+
+-Marka seçimi sonrasında ilgili ürünlerin doğru listelenmesinin kontrol edilmesi
+
+-Öneri alanında gösterilen ürün verilerinin kontrol edilmesi
+
+-Kullanıcı giriş yapmadan önce gösterilen kişiselleştirilmiş önerilerin kontrol edilmesi
+
+-Fiyat analizi grafiği ve yapay zekâ tahmin verilerinin kontrol edilmesi
+
+-Sepet optimizasyonu ekranındaki işlev ve yönlendirmelerin kontrol edilmesi
+
+-Kayıt sürecindeki e-posta doğrulama işlemlerinin değerlendirilmesi
+
+-Profil bilgileri, hesap güvenliği ve kullanıcı işlemlerinin kontrol edilmesi
+
+-Favoriler ekranındaki yönlendirme ve fiyat karşılaştırma alanlarının kontrol edilmesi
 
 - **Daily Scrum**:
+
+Daily Scrum sürecinde Azure DevOps board üzerindeki work item ve task durumları düzenli olarak takip edilmiştir. Backlog, To Do, In Progress, Rejected ve Done kolonlarındaki hareketler kontrol edilmiş; tamamlanan çalışmaların ilgili statülere taşınmasına dikkat edilmiştir.
+
+Sprint boyunca özellikle chatbot ve veritabanı testleri, marka ve ürün listeleme işlemleri, kişiselleştirilmiş öneri alanları, fiyat analizi, ürün kartı yönlendirmeleri, sepet, favoriler, profil ve kayıt işlemleri üzerinde durulmuştur.
 
 
 - **Sprint board update**: Sprint board screenshotları:
 
-<img width="1671" height="820" alt="Ekran görüntüsü 2026-07-22 143955" src="https://github.com/user-attachments/assets/68182523-fbfa-497e-957a-43eafda5f7cd" />
-<img width="1694" height="818" alt="2" src="https://github.com/user-attachments/assets/9d104984-7e75-41c7-9745-c66b2f21e147" />
-<img width="1705" height="813" alt="3" src="https://github.com/user-attachments/assets/9982e8a7-24e9-43fe-a094-16591d7f309c" />
-<img width="1700" height="826" alt="4" src="https://github.com/user-attachments/assets/14c45a4e-d612-43ea-b9ca-2d76da3a8d36" />
+Sprint 3 kapsamında planlanan ana çalışmaların sprint içerisindeki ilerleme durumu Azure DevOps üzerinden takip edilmiştir.
+
+<img width="1705" height="813" alt="1" src="https://github.com/user-attachments/assets/03e1044f-7164-484f-8829-286877498d77" />
+<img width="1700" height="826" alt="2" src="https://github.com/user-attachments/assets/d72535c3-8672-4fcc-9a01-b7d323fe3c0c" />
+<img width="1698" height="819" alt="3" src="https://github.com/user-attachments/assets/59e972f7-19f0-4d77-8d00-4ce9144e7251" />
+<img width="1700" height="825" alt="4" src="https://github.com/user-attachments/assets/30379f39-3c5c-4e13-bc28-54039c083a85" />
+<img width="1696" height="816" alt="5" src="https://github.com/user-attachments/assets/babf3fca-b1b6-4642-af6d-259498884ec9" />
+<img width="1690" height="811" alt="6" src="https://github.com/user-attachments/assets/7d1a275a-5b9c-43fd-8c54-6b859a742fe3" />
+<img width="1696" height="817" alt="7" src="https://github.com/user-attachments/assets/69b2a975-ef1d-4c19-af80-b2da5a3bd4d3" />
+
 
 
 
 
 - **Ürün Durumu**:
-  
+Sprint 3 sonunda Beautrics’in temel kullanıcı akışları tek bir uygulama yapısı altında bir araya getirilmiş ve ürün, bütünleşik bir MVP seviyesine ulaştırılmıştır. Kullanıcıların kayıt olup giriş yapabildiği, kişisel bakım tercihlerini profil üzerinden yönetebildiği ve ürünleri kategori veya marka bazında inceleyebildiği bir kullanıcı deneyimi oluşturulmuştur.
+
+Ana sayfada farklı mağazalardaki ürün fiyatlarının karşılaştırılabildiği ürün kartları ile kullanıcı profiline ve bakım tercihlerine göre şekillenen öneri alanları sunulmuştur. Ürünlerin detay bilgilerine erişilmesi, favorilere veya sepete eklenmesi ve fiyat değişimlerinin incelenmesi için gerekli ekranlar kullanıcı akışına dâhil edilmiştir. Fiyat analizi grafiği ve yapay zekâ destekli tahmin alanlarıyla ürünlerin fiyat değişimlerinin kullanıcı tarafından takip edilebilmesi desteklenmiştir.
+
+Chatbot entegrasyonu sayesinde kullanıcıların bakım ihtiyaçlarını doğal dilde ifade ederek veritabanındaki ürünler arasından uygun öneriler alabilmesine yönelik yapı hazırlanmıştır. Ürün kartlarına eklenen AI Sor özelliğiyle kullanıcıların seçtikleri ürün hakkında doğrudan yapay zekâ asistanına soru yöneltebilmesi sağlanmıştır.
+
+Sprint 3 kapsamında gerçekleştirilen arayüz düzenlemeleri, yönlendirme kontrolleri ve test çalışmalarıyla marka seçimi, ürün listeleme, kişiselleştirilmiş öneriler, favoriler, sepet, profil ve chatbot arasındaki temel bağlantılar geliştirilmiştir. Ayrıca Beautrics için hazırlanan logo uygulamaya eklenerek ürünün görsel kimliği tamamlanmıştır.
+
+Ürünün son hali; kişiselleştirilmiş bakım önerileri, ürün ve mağaza fiyat karşılaştırması, favori ve sepet yönetimi, fiyat analizi ve yapay zekâ destekli ürün danışmanlığını aynı platformda birleştiren, temel kullanıcı akışları oluşturulmuş bir MVP niteliğindedir. Erkek kullanıcılara yönelik ürün kataloğunun genişletilmesi ise Sprint 3 sonunda tamamlanmayan kapsam olarak kalmıştır.
+
 Ekran görüntüleri:
+
+<img width="1919" height="860" alt="image" src="https://github.com/user-attachments/assets/0653185c-c221-44b7-92cf-20e5678eabf8" />
+<img width="1897" height="872" alt="image" src="https://github.com/user-attachments/assets/15094754-e388-4873-843a-403becbb830a" />
+<img width="1915" height="867" alt="image" src="https://github.com/user-attachments/assets/1ca30d3e-576b-4e86-be8a-334ff02884da" />
+<img width="1919" height="852" alt="image" src="https://github.com/user-attachments/assets/c7b5af8f-0444-48ed-aabb-b191db98d2bf" />
+<img width="1919" height="859" alt="image" src="https://github.com/user-attachments/assets/54a8c053-4c02-4b04-9322-c6d8cb062e53" />
+<img width="973" height="572" alt="image" src="https://github.com/user-attachments/assets/4d9d22bd-6c67-440f-a50b-cd1ca53436f5" />
+<img width="1915" height="867" alt="image" src="https://github.com/user-attachments/assets/5fb44f11-592b-4a34-b360-60fea895fde7" />
+<img width="1918" height="857" alt="image" src="https://github.com/user-attachments/assets/c6437e56-91fa-419f-9270-778cba243687" />
+<img width="1918" height="833" alt="image" src="https://github.com/user-attachments/assets/a3bb423e-6b2a-497f-ab8b-d85f7e2abf0d" />
+<img width="1890" height="868" alt="image" src="https://github.com/user-attachments/assets/dd198413-bd3a-4f78-ae6a-d2cd483c14e1" />
+<img width="1893" height="868" alt="image" src="https://github.com/user-attachments/assets/411690ab-0b67-484d-a286-4bf896de265a" />
+<img width="1908" height="856" alt="image" src="https://github.com/user-attachments/assets/7b43c4c3-85c3-40ff-93e8-e221b8087827" />
+<img width="1908" height="856" alt="image" src="https://github.com/user-attachments/assets/25ae61d8-9a94-4ab7-b89d-3eb5aac6ce56" />
+
 
 
 
 ## Sprint Review
+Sprint 3 kapsamında önceki sprintlerde geliştirilen fonksiyonlar bütünsel olarak ele alınmış; test, kontrol ve iyileştirme çalışmaları tamamlanarak Beautrics’in temel kullanıcı akışları son haline getirilmiştir.
 
+Sprint sonunda ulaşılan durum:
+
+Test İşlemleri ve Gerekli Geliştirmelerin Yapılması çalışması Closed durumuna getirilmiştir.
+
+-Chatbot ve veritabanı testleri gerçekleştirilmiştir.
+
+-Marka seçimi ve seçilen markaya ait ürünlerin listelenmesi kontrol edilmiştir.
+
+-Kişiselleştirilmiş ürün önerilerinin gösterildiği alanlar test edilmiştir.
+
+-Ürün kartlarındaki yönlendirmeler ve kategori etiketi metinleri düzenlenmiştir.
+
+-Ürün kartlarında yer alan AI Sor özelliği tamamlanmıştır.
+
+-Chatbot üzerinden kullanıcı profiline uygun ürün önerisi alınmasına yönelik çalışma Closed durumuna getirilmiştir.
+
+-Kullanıcı kayıt ve profil işlemleri, favoriler, sepet ve fiyat analizi alanları kontrol edilmiştir.
+
+-Beautrics logosu oluşturularak uygulamaya eklenmiştir.
+
+-Ürün kataloğunun erkek kullanıcıları da kapsayacak şekilde genişletilmesine ilişkin 3 story point’lik US-10 tamamlanmamış ve Rejected kolonunda bırakılmıştır.
+
+Son Sprint Review kapsamında Beautrics’in kişiselleştirilmiş bakım önerileri, ürün ve mağaza fiyat karşılaştırması, favori ve sepet yönetimi, fiyat analizi ve yapay zekâ destekli ürün danışmanlığı gibi temel fonksiyonları bir araya getiren bütünleşik MVP yapısı değerlendirilmiştir.
+
+Sprint Review katılımcıları:
+
+Edanur Ay
+
+Sude Gül ÜZÜM
+
+Ayşegül Yılmaz
+
+Muhammet Yusuf Yılmaz
 
 
 ## Sprint Retrospective
+Projenin son sprinti olan Sprint 3 sonunda geliştirme süreci; takım çalışması, görev yönetimi, test faaliyetleri ve ürünün ulaştığı son durum açısından değerlendirilmiştir.
 
+-Önceki sprintlerde geliştirilen kullanıcı akışlarının ayrı test task’larına bölünmesi, kontrollerin daha düzenli ve izlenebilir şekilde yürütülmesini sağlamıştır.
+
+-Chatbot, veritabanı ve frontend çalışmalarının aynı sprint kapsamında ele alınması, birbiriyle ilişkili kullanıcı akışlarının bütünsel olarak kontrol edilmesini sağlamıştır.
+
+-Testler sonucunda belirlenen frontend düzenlemeleri gerçekleştirilerek kullanıcıya sunulan ekranlar ve yönlendirmeler iyileştirilmiştir.
+
+-User story ve task durumlarının Azure DevOps üzerinden takip edilmesi, sprint ilerlemesinin ve tamamlanan kapsamın görünür olmasını sağlamıştır.
+
+-Ana work item’ların kapatılmasından önce bağlı task durumlarının kontrol edilmesi ve ana kartla uyumlu hale getirilmesi gerektiği görülmüştür.
+
+-Story point değerlerinin ve iş durumlarının sprint boyunca güncel tutulmasının burndown grafiğinin doğru yorumlanması açısından önemli olduğu değerlendirilmiştir.
+
+-Veri kapsamı geniş çalışmaların sprint planlaması sırasında daha ayrıntılı şekilde ele alınması gerektiği görülmüştür.
+
+-Test faaliyetlerinin geliştirme sürecinin sonuna bırakılmadan sprint boyunca yürütülmesinin hata ve eksikliklerin daha erken tespit edilmesini sağladığı değerlendirilmiştir.
+
+-Proje boyunca edinilen deneyimlerin, sonraki projelerde kapsam yönetimi, görev dağılımı, test planlaması ve board kullanımı açısından yol gösterici olması beklenmektedir.
+
+Sprint 3’ün tamamlanmasıyla birlikte Beautrics projesinin planlanan sprint süreci sona ermiş ve ürünün temel fonksiyonlarını içeren MVP yapısı ortaya çıkarılmıştır.
 
 
 ---
