@@ -399,5 +399,5 @@ Projenin son sprinti olan Sprint 3 sonunda geliştirme süreci; takım çalışm
 
 Sprint 3’ün tamamlanmasıyla birlikte Beautrics projesinin planlanan sprint süreci sona ermiş ve ürünün temel fonksiyonlarını içeren MVP yapısı ortaya çıkarılmıştır.
 
-
+- Ürünü anlattığımız youtube videosu linki: https://www.youtube.com/watch?v=OS13EaBuVMw
 ---
